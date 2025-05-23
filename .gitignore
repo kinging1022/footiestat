@@ -1,0 +1,127 @@
+
+.env
+.env.local
+env.local
+myenv
+
+
+# Backend specific
+# Python cache files
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+*.py[cod]
+*$py.class
+__pycache__/
+*.rdb
+
+
+#pytest
+.pytest_cache
+
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+
+# Byte-compiled / optimized / DLL files
+_pycache_/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.pytest_cache/
+.coverage
+coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+htmlcov/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# PyCharm / VSCode / other IDE files
+.idea/
+.vscode/
+*.code-workspace
+
+# macOS / Linux / Windows OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# dotenv
+.env
+.env.*
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Pylint
+pylint-report.txt
+pylint-global.txt
+
+# Coverage tool
+.tox/
+
+# Profiling
+*.prof
+.prof/
+
+# Test database
+*.sqlite3
+*.db
+
+# Docker
+*.pid
+*.tar
+*.log
+_dockerized_/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+
+
+
+
+

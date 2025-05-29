@@ -45,7 +45,7 @@ class Command(BaseCommand):
 
     def _fetch_leagues(self):
         """Fetch leagues and filter by priority"""
-        raw_data = get_league_details()
+        raw_data = get_league_details(season=2023)
         return raw_data['response']  
        
 

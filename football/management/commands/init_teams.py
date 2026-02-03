@@ -37,7 +37,13 @@ class Command(BaseCommand):
             '--wait-time',
             type=int,
             default=10,
-            help='Wait time in seconds when queue limit is reached'
+            help='Initial wait time in seconds when queue limit is reached'
+        )
+        parser.add_argument(
+            '--max-retries',
+            type=int,
+            default=3,
+            help='Maximum number of retries for connection/unknown errors only'
         )
         parser.add_argument(
             '--start-limit',
@@ -51,11 +57,12 @@ class Command(BaseCommand):
         )
     
     def handle(self, *args, **options):
-        countries_names = self._get_countries_names(options.get('start_limit'),options.get('end_limit'))
+        countries_names = self._get_countries_names(options.get('start_limit'), options.get('end_limit'))
         batch_size = options['countries_per_task']
         dry_run = options['dry_run']
         max_queue = options['max_queue']
-        wait_time = options['wait_time']
+        initial_wait_time = options['wait_time']
+        max_retries = options['max_retries']
 
         self.stdout.write(
             self.style.SUCCESS(f"Found {len(countries_names)} countries to process")
@@ -87,58 +94,18 @@ class Command(BaseCommand):
                     progress.update(1)
                     successful_batches += 1
                     continue
-
-                try:
-                    # Check current queue size using llen for accuracy
-                    current_queue_size = redis.llen(self.CELERY_QUEUE_NAME)
-                    
-                    if current_queue_size >= max_queue:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"Queue limit reached ({current_queue_size}/{max_queue}). "
-                                f"Waiting {wait_time}s..."
-                            )
-                        )
-                        time.sleep(wait_time)
-                        continue  # Retry this batch
-
-                    # Ensure batch_names is a list (it already is from slicing)
-                    if not isinstance(batch_names, list):
-                        batch_names = list(batch_names)
-
-                    # Queue the task
-                    populate_teams_task.delay(batch_names)
-                    
+                
+                # Process batch with guaranteed completion (except for fatal errors)
+                batch_result = self._queue_batch_with_persistence(
+                    batch_names, redis, max_queue, initial_wait_time, max_retries, progress.n, total_batches
+                )
+                
+                if batch_result:
                     successful_batches += 1
-                    progress.update(1)
-                    
-                    logger.info(f"Queued batch {progress.n}: {batch_names}")
-                    self.stdout.write(
-                        self.style.SUCCESS(
-                            f"Queued batch {progress.n}/{total_batches} "
-                            f"(Queue size: ~{current_queue_size + 1})"
-                        )
-                    )
-
-                except (ConnectionError, TimeoutError) as e:
+                else:
                     failed_batches += 1
-                    logger.error(f"Celery connection error for batch {progress.n}: {e}")
-                    self.stderr.write(
-                        self.style.ERROR(f"Celery connection error: {e}")
-                    )
-                    # Decide whether to break or continue based on error severity
-                    if isinstance(e, ConnectionError):
-                        break  # Critical error, stop processing
-                    else:
-                        continue  # Timeout, try next batch
-
-                except Exception as e:
-                    failed_batches += 1
-                    logger.exception(f"Failed to queue batch {progress.n}")
-                    self.stderr.write(
-                        self.style.ERROR(f"Failed to queue batch {progress.n}: {str(e)}")
-                    )
-                    continue
+                
+                progress.update(1)
 
         # Summary
         self.stdout.write(
@@ -149,6 +116,116 @@ class Command(BaseCommand):
                 f"- Total batches: {total_batches}"
             )
         )
+
+    def _queue_batch_with_persistence(self, batch_names: List[str], redis, max_queue: int, 
+                                    initial_wait_time: int, max_retries: int, 
+                                    batch_num: int, total_batches: int) -> bool:
+        """
+        Queue a batch with persistence - will not give up due to queue size limits.
+        Only fails on connection errors or unknown errors after retries.
+        
+        Returns True if successfully queued, False if permanently failed.
+        """
+        retry_count = 0
+        wait_time = initial_wait_time
+        
+        # Ensure batch_names is a list
+        if not isinstance(batch_names, list):
+            batch_names = list(batch_names)
+
+        while True:
+            try:
+                # Check current queue size
+                current_queue_size = redis.llen(self.CELERY_QUEUE_NAME)
+                
+                # If queue is full, wait indefinitely with exponential backoff
+                if current_queue_size >= max_queue:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Queue full ({current_queue_size}/{max_queue}). "
+                            f"Waiting {wait_time}s for batch {batch_num}/{total_batches}..."
+                        )
+                    )
+                    time.sleep(wait_time)
+                    # Exponential backoff with cap at 60 seconds
+                    wait_time = min(wait_time * 1.5, 60)
+                    continue  # Keep trying - NO BATCH LEFT BEHIND for queue size
+
+                # Queue has space - attempt to queue the task
+                populate_teams_task.delay(batch_names)
+                
+                logger.info(f"Successfully queued batch {batch_num}: {batch_names}")
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"✓ Queued batch {batch_num}/{total_batches} "
+                        f"(Queue size: ~{current_queue_size + 1})"
+                    )
+                )
+                return True  # SUCCESS!
+
+            except ConnectionError as e:
+                # Connection errors are serious - retry with limit
+                retry_count += 1
+                logger.error(f"Redis connection error for batch {batch_num} (attempt {retry_count}): {e}")
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"Redis connection error for batch {batch_num} (attempt {retry_count}/{max_retries}): {e}"
+                    )
+                )
+                
+                if retry_count >= max_retries:
+                    self.stderr.write(
+                        self.style.ERROR(f"✗ FATAL: Max connection retries reached for batch {batch_num}")
+                    )
+                    return False  # PERMANENT FAILURE
+                
+                # Wait before retry with exponential backoff
+                backoff_time = initial_wait_time * (2 ** (retry_count - 1))
+                self.stdout.write(f"Retrying connection in {backoff_time}s...")
+                time.sleep(backoff_time)
+                continue
+
+            except TimeoutError as e:
+                # Timeout errors - retry with limit
+                retry_count += 1
+                logger.error(f"Celery timeout error for batch {batch_num} (attempt {retry_count}): {e}")
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"Celery timeout for batch {batch_num} (attempt {retry_count}/{max_retries}): {e}"
+                    )
+                )
+                
+                if retry_count >= max_retries:
+                    self.stderr.write(
+                        self.style.ERROR(f"✗ FATAL: Max timeout retries reached for batch {batch_num}")
+                    )
+                    return False  # PERMANENT FAILURE
+                
+                # Wait before retry
+                backoff_time = initial_wait_time * (2 ** (retry_count - 1))
+                time.sleep(backoff_time)
+                continue
+
+            except Exception as e:
+                # Unknown errors - retry with limit
+                retry_count += 1
+                logger.exception(f"Unknown error queuing batch {batch_num} (attempt {retry_count})")
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"Unknown error for batch {batch_num} (attempt {retry_count}/{max_retries}): {str(e)}"
+                    )
+                )
+                
+                if retry_count >= max_retries:
+                    self.stderr.write(
+                        self.style.ERROR(f"✗ FATAL: Max retries reached for unknown error on batch {batch_num}")
+                    )
+                    return False  # PERMANENT FAILURE
+                
+                # Wait before retry
+                backoff_time = initial_wait_time * (2 ** (retry_count - 1))
+                time.sleep(backoff_time)
+                continue
 
     def _get_countries_names(self, start_limit=None, end_limit=None) -> List[str]:
         """Fetch country names as a list for consistent ordering."""

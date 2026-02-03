@@ -9,7 +9,7 @@ import time
 
 from football.models import League, Team, Country, LeagueTableSnapshot
 from football.management.commands.init_standings import Command
-from football.tasks import populate_standings_task, _process_single_league
+from football.tasks.command_tasks import populate_standings_task, _process_single_league
 
 
 class TestInitStandingsCommand(TestCase):
@@ -206,7 +206,7 @@ class TestPopulateStandingsTask(TestCase):
             Team.objects.create(id=2, name="Liverpool", country= self.country),
         ]
 
-    @patch('football.tasks._process_single_league')
+    @patch('football.tasks.command_tasks._process_single_league')
     def test_populate_standings_task_success(self, mock_process):
         """Test successful task execution"""
         league_ids = [1, 2]
@@ -219,19 +219,19 @@ class TestPopulateStandingsTask(TestCase):
         assert 1 in called_league_ids
         assert 2 in called_league_ids
 
-    @patch('football.tasks._process_single_league')
+    @patch('football.tasks.command_tasks._process_single_league')
     def test_populate_standings_task_missing_league(self, mock_process):
         """Test task with non-existent league"""
         league_ids = [1, 999, 2]  # 999 doesn't exist
         
-        with patch('football.tasks.logger') as mock_logger:
+        with patch('football.tasks.command_tasks.logger') as mock_logger:
             populate_standings_task(league_ids)
             
             mock_logger.warning.assert_called_with("League 999 not found in database")
             # Should still process existing leagues
             assert mock_process.call_count == 2
 
-    @patch('football.tasks._process_single_league')
+    @patch('football.tasks.command_tasks._process_single_league')
     def test_populate_standings_task_exception_handling(self, mock_process):
         """Test task exception handling and retry with exponential backoff"""
         mock_process.side_effect = Exception("Processing failed")
@@ -264,7 +264,7 @@ class TestProcessSingleLeague(TestCase):
         self.task.max_retries = 3
 
     @patch('football.api_client.get_league_table')
-    @patch('football.tasks.LeagueTableSnapshot.objects.bulk_create')
+    @patch('football.models.LeagueTableSnapshot.objects.bulk_create')
     def test_process_single_league_success(self, mock_bulk_create, mock_api):
         """Test successful league processing"""
         mock_api.return_value = {
@@ -287,8 +287,8 @@ class TestProcessSingleLeague(TestCase):
                                         'lose': 0
                                     },
                                     'form': 'WWWWW',
-                                    'home': {'played': 5},
-                                    'away': {'played': 5}
+                                    'home': {'played': 3, 'win': 2, 'draw': 1, 'lose': 0, 'goals': {'for': 6, 'against': 2}},
+                                    'away': {'played': 2, 'win': 1, 'draw': 0, 'lose': 1, 'goals': {'for': 4, 'against': 3}},
                                 },
                                 {
                                     'rank': 2,
@@ -303,8 +303,8 @@ class TestProcessSingleLeague(TestCase):
                                         'lose': 2
                                     },
                                     'form': 'WWLWW',
-                                    'home': {'played': 5},
-                                    'away': {'played': 5}
+                                    'home': {'played': 3, 'win': 2, 'draw': 1, 'lose': 0, 'goals': {'for': 6, 'against': 2}},
+                                    'away': {'played': 2, 'win': 1, 'draw': 0, 'lose': 1, 'goals': {'for': 4, 'against': 3}},
                                 }
                             ]
                         ]
@@ -371,7 +371,7 @@ class TestProcessSingleLeague(TestCase):
             'response': [{'league': {}}]  # Missing standings
         }
         
-        with patch('football.tasks.logger') as mock_logger:
+        with patch('football.tasks.command_tasks.logger') as mock_logger:
             _process_single_league(self.task, 1, self.league)
             
             mock_logger.error.assert_called()
@@ -386,7 +386,7 @@ class TestProcessSingleLeague(TestCase):
         
         mock_api.side_effect = Exception("API Error")
         
-        with patch('football.tasks.logger') as mock_logger:
+        with patch('football.tasks.command_tasks.logger') as mock_logger:
             _process_single_league(self.task, 1, self.league)
             
             mock_logger.error.assert_called_with("Max retries exceeded for league 1")
@@ -397,7 +397,7 @@ class TestProcessSingleLeague(TestCase):
         """Test handling of request exceptions (should retry)"""
         mock_api.side_effect = requests.RequestException("Connection timeout")
         
-        with patch('football.tasks.logger') as mock_logger:
+        with patch('football.tasks.command_tasks.logger') as mock_logger:
             _process_single_league(self.task, 1, self.league)
             
             mock_logger.warning.assert_called()
@@ -408,15 +408,15 @@ class TestProcessSingleLeague(TestCase):
         """Test handling of unexpected exceptions (should not retry)"""
         mock_api.side_effect = ValueError("Unexpected error")
         
-        with patch('football.tasks.logger') as mock_logger:
+        with patch('football.tasks.command_tasks.logger') as mock_logger:
             _process_single_league(self.task, 1, self.league)
             
             mock_logger.error.assert_called()
             self.task.retry.assert_not_called()
 
     @patch('football.api_client.get_league_table')
-    @patch('football.tasks.Team.objects.filter')
-    @patch('football.tasks.LeagueTableSnapshot.objects.bulk_create')
+    @patch('football.tasks.command_tasks.Team.objects.filter')
+    @patch('football.models.LeagueTableSnapshot.objects.bulk_create')
     def test_process_single_league_missing_teams(self, mock_bulk_create, mock_teams_filter, mock_api):
         """Test handling when some teams are missing from database"""
         mock_api.return_value = {
@@ -432,7 +432,9 @@ class TestProcessSingleLeague(TestCase):
                                     'points': 30,
                                     'goalsDiff': 10,
                                     'all': {'goals': {'for': 25, 'against': 15}},
-                                    'form': 'WWWWW'
+                                    'form': 'WWWWW',
+                                    'home': {'played': 3, 'win': 2, 'draw': 1, 'lose': 0, 'goals': {'for': 6, 'against': 2}},
+                                    'away': {'played': 2, 'win': 1, 'draw': 0, 'lose': 1, 'goals': {'for': 4, 'against': 3}},
                                 },
                                 {
                                     'rank': 2,
@@ -440,7 +442,9 @@ class TestProcessSingleLeague(TestCase):
                                     'points': 25,
                                     'goalsDiff': 5,
                                     'all': {'goals': {'for': 20, 'against': 15}},
-                                    'form': 'WWLWW'
+                                    'form': 'WWLWW',
+                                    'home': {'played': 3, 'win': 2, 'draw': 1, 'lose': 0, 'goals': {'for': 6, 'against': 2}},
+                                    'away': {'played': 2, 'win': 1, 'draw': 0, 'lose': 1, 'goals': {'for': 4, 'against': 3}},
                                 }
                             ]
                         ]
@@ -464,7 +468,7 @@ class TestProcessSingleLeague(TestCase):
         assert snapshots[0].team == self.teams[0]  # Found team
 
     @patch('football.api_client.get_league_table')
-    @patch('football.tasks.LeagueTableSnapshot.objects.bulk_create')
+    @patch('football.models.LeagueTableSnapshot.objects.bulk_create')
     def test_process_single_league_handles_missing_stats(self, mock_bulk_create, mock_api):
         """Test handling of missing statistical data in API response"""
         mock_api.return_value = {
@@ -479,6 +483,8 @@ class TestProcessSingleLeague(TestCase):
                                     'team': {'id': 1, 'name': 'Manchester United'},
                                     'points': 30,
                                     'goalsDiff': 10,
+                                    'home': {'played': 3, 'win': 2, 'draw': 1, 'lose': 0, 'goals': {'for': 6, 'against': 2}},
+                                    'away': {'played': 2, 'win': 1, 'draw': 0, 'lose': 1, 'goals': {'for': 4, 'against': 3}},
                                     'form': 'WWWWW'
                                     # Missing 'all', 'home', 'away' stats
                                 }

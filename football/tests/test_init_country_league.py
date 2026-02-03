@@ -5,7 +5,7 @@ from django.core.management.base import CommandError
 from django.db import transaction
 from io import StringIO
 from football.models import Country, League
-from football.management.commands.init_data import Command
+from football.management.commands.init_country_league import Command
 
 
 @pytest.fixture
@@ -72,16 +72,16 @@ def command():
 
 
 @pytest.mark.django_db
-class TestInitDataCommand:
-    """Test suite for the init_data management command"""
+class TestInitCountryLeagueCommand:
+    """Test suite for the init_country_league management command"""
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_successful_initialization(self, mock_get_league_details, sample_api_response):
         """Test successful command execution"""
         mock_get_league_details.return_value = sample_api_response
         
         out = StringIO()
-        call_command('init_data', stdout=out)
+        call_command('init_country_league', stdout=out)
         
         # Verify countries were created
         assert Country.objects.count() == 3
@@ -110,19 +110,19 @@ class TestInitDataCommand:
         # Check success message
         assert 'Successfully initialized 3 prioritized leagues' in out.getvalue()
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_custom_batch_size(self, mock_get_league_details, sample_api_response):
         """Test command with custom batch size"""
         mock_get_league_details.return_value = sample_api_response
         
         out = StringIO()
-        call_command('init_data', '--batch-size=2', stdout=out)
+        call_command('init_country_league', '--batch-size=2', stdout=out)
         
         # Should still create all records regardless of batch size
         assert Country.objects.count() == 3
         assert League.objects.count() == 3
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_existing_countries_not_duplicated(self, mock_get_league_details, sample_api_response):
         """Test that existing countries are not duplicated"""
         # Create existing country
@@ -134,7 +134,7 @@ class TestInitDataCommand:
         
         mock_get_league_details.return_value = sample_api_response
         
-        call_command('init_data')
+        call_command('init_country_league')
         
         # Should still have only 3 countries total
         assert Country.objects.count() == 3
@@ -144,7 +144,7 @@ class TestInitDataCommand:
         assert england_country.id == existing_country.id
         assert england_country.flag == 'https://existing-flag.com'  # Original flag preserved
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_existing_leagues_not_duplicated(self, mock_get_league_details, sample_api_response):
         """Test that existing leagues are not duplicated"""
         # Create existing country and league
@@ -158,12 +158,12 @@ class TestInitDataCommand:
         
         mock_get_league_details.return_value = sample_api_response
         
-        call_command('init_data')
+        call_command('init_country_league')
         
         # Should still have only 3 leagues total
         assert League.objects.count() == 3
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_invalid_data_handling(self, mock_get_league_details):
         """Test handling of invalid/incomplete data"""
         invalid_response = {
@@ -229,7 +229,7 @@ class TestInitDataCommand:
         mock_get_league_details.return_value = invalid_response
         
         out = StringIO()
-        call_command('init_data', stdout=out)
+        call_command('init_country_league', stdout=out)
         
         # Countries are processed first, so Test Country and Another Country will be created
         # even if their leagues fail validation
@@ -239,7 +239,7 @@ class TestInitDataCommand:
         # Check warning message about skipped records
         assert 'Skipped 3 invalid/missing records' in out.getvalue()
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_api_failure(self, mock_get_league_details):
         """Test handling of API failure"""
         mock_get_league_details.side_effect = Exception("API Error")
@@ -252,13 +252,13 @@ class TestInitDataCommand:
         assert Country.objects.count() == 0
         assert League.objects.count() == 0
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_empty_api_response(self, mock_get_league_details):
         """Test handling of empty API response"""
         mock_get_league_details.return_value = {'response': []}
         
         out = StringIO()
-        call_command('init_data', stdout=out)
+        call_command('init_country_league', stdout=out)
         
         # No data should be created
         assert Country.objects.count() == 0
@@ -268,7 +268,7 @@ class TestInitDataCommand:
 
     def test_fetch_leagues_method(self, command, sample_api_response):
         """Test the _fetch_leagues method"""
-        with patch('football.management.commands.init_data.get_league_details') as mock_api:
+        with patch('football.management.commands.init_country_league.get_league_details') as mock_api:
             mock_api.return_value = sample_api_response
             
             result = command._fetch_leagues()
@@ -343,7 +343,7 @@ class TestInitDataCommand:
         # All leagues should still be created
         assert League.objects.count() == 3
 
-    @patch('football.management.commands.init_data.get_league_details')
+    @patch('football.management.commands.init_country_league.get_league_details')
     def test_transaction_rollback_on_error(self, mock_get_league_details, sample_api_response):
         """Test that transaction is rolled back on error"""
         mock_get_league_details.return_value = sample_api_response

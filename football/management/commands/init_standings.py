@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django_redis import get_redis_connection
 from football.models import League
-from football.tasks import populate_standings_task
+from football.tasks.command_tasks import populate_standings_task
 from tqdm import tqdm
 import logging
 from typing import List

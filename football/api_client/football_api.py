@@ -1,5 +1,6 @@
 import requests
 from django.conf import settings
+from football.utils import get_football_api_limiter
 
 API_BASE_URL = settings.BASE_API_URL
 API_KEY = settings.API_KEY
@@ -7,22 +8,49 @@ HEADERS = {
     'x-apisports-key': API_KEY
 }
 
+# Simple custom exception for rate limiting
+class RateLimitExceeded(Exception):
+    def __init__(self, wait_time, usage_stats):
+        self.wait_time = wait_time
+        self.usage_stats = usage_stats
+        super().__init__(f"Rate limit exceeded. Wait {wait_time:.1f}s")
 
-def get_fixtures(start_date=None, club_id=None, season=None, round=None , fixture_id=None, status=None):
+
+
+def _make_request(url, params=None):
     """
-     Fetch fixtures from the football API.
+    Internal helper to make rate-limited requests.
+    Adds rate limiting to your existing functions with minimal changes.
+    """
+    rate_limiter = get_football_api_limiter()
+    
+    # Check rate limit
+    if not rate_limiter.can_make_request():
+        wait_time = rate_limiter.wait_time_until_next_slot()
+        usage = rate_limiter.get_current_usage()
+        raise RateLimitExceeded(wait_time, usage)
+    
+    # Make the request (your original logic)
+    response = requests.get(url, headers=HEADERS, params=params or {})
+    response.raise_for_status()
+    return response.json()
+
+
+def get_fixtures(date=None, team_id=None, season=None, round=None, fixture_id=None, status=None, from_date=None, to_date=None, last=None, next=None, league=None):
+    """
+    Fetch fixtures from the football API.
     :param start_date: date to filter fixtures.
     :param club_id: ID of the club to filter fixtures.
     :param season: Season to filter fixtures.
     :param round: Round to filter fixtures.
     :return: JSON response containing fixtures.
-   
     """
     params = {}
-    if start_date:
-        params['date'] = start_date
-    if club_id:
-        params['club'] = club_id
+    if date:
+        params['date'] = date
+    
+    if team_id:
+        params['team'] = team_id
 
     if round:
         params['round'] = round
@@ -35,12 +63,24 @@ def get_fixtures(start_date=None, club_id=None, season=None, round=None , fixtur
 
     if status:
         params['status'] = status
-    
-    url = API_BASE_URL + '/fixtures'
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
 
+    if from_date:
+        params["from"] = from_date
+
+    if to_date:
+        params['to'] = to_date
+
+    if last:
+        params['last'] = last
+
+    if next:
+        params['next'] = next
+
+    if league:
+        params['league'] = league
+
+    url = API_BASE_URL + '/fixtures'
+    return _make_request(url, params)  # ← Only change: use _make_request
 
 
 def get_country_details(country_name):
@@ -51,9 +91,7 @@ def get_country_details(country_name):
     """
     url = API_BASE_URL + '/countries/'
     params = {'name': country_name}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
+    return _make_request(url, params)  # ← Only change: use _make_request
 
 
 def get_league_details(id=None, season=None):
@@ -63,31 +101,24 @@ def get_league_details(id=None, season=None):
     :param season: season to filter the league details.
     :return: JSON response containing country details.
     """
-    
     url = API_BASE_URL + '/leagues/'
-    params = {'current':'true'}
+    params = {'current': 'true'}
     if id:
         params['id'] = id
     if season:
         params['season'] = season
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
+    return _make_request(url, params)  # ← Only change: use _make_request
 
 
-def get_team_details(id=None,season=None,country=None):
-
+def get_team_details(id=None, season=None, country=None):
     """
     Fetch team details from football api
     :param id: id of the team to fetch details for.
     :param season: season to filter the team details.
     :param country: country to filter the team details.
     :return: JSON response containing team details.
-
     """
-
     url = API_BASE_URL + '/teams'
-
     params = {}
 
     if id:
@@ -97,12 +128,7 @@ def get_team_details(id=None,season=None,country=None):
     if country:
         params['country'] = country
     
-    
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
-    
-        
+    return _make_request(url, params)  # ← Only change: use _make_request
 
 
 def get_league_table(league_id, season=None):
@@ -116,12 +142,10 @@ def get_league_table(league_id, season=None):
     params = {'league': league_id}
     if season:
         params['season'] = season
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
+    return _make_request(url, params)  # ← Only change: use _make_request
 
 
-def get_fixture_head_to_head(team_ids,last=None):
+def get_fixture_head_to_head(team_ids, last=None):
     """
     Fetch head-to-head data between two teams from the football API.
     :param teamids: list of team IDs to fetch head-to-head data for.
@@ -129,15 +153,10 @@ def get_fixture_head_to_head(team_ids,last=None):
     :return: JSON response containing head-to-head data.
     """
     url = API_BASE_URL + '/fixtures/headtohead'
-
     params = {'h2h': team_ids}
     if last:
         params['last'] = last
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
-
-
+    return _make_request(url, params)  # ← Only change: use _make_request
 
 
 def get_fixture_stats(fixture_id):
@@ -148,6 +167,4 @@ def get_fixture_stats(fixture_id):
     """
     url = API_BASE_URL + '/fixtures/statistics'
     params = {'fixture': fixture_id}
-    response = requests.get(url, headers=HEADERS, params=params)
-    response.raise_for_status()
-    return response.json()
+    return _make_request(url, params)  # ← Only change: use _make_request

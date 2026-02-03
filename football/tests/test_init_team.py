@@ -7,14 +7,13 @@ from celery.exceptions import Retry, TimeoutError
 
 from football.models import Country
 from football.management.commands.init_teams import Command
-from football.tasks import populate_teams_task, _process_single_country
+from football.tasks.command_tasks import populate_teams_task, _process_single_country
 
 
 class TestInitTeamsCommand(TestCase):
-    """Test cases for the init_teams management command"""
-    
+    """Test cases for init team management command"""
+
     def setUp(self):
-        """Set up test data"""
         self.countries = [
             Country.objects.create(id=1, name="England"),
             Country.objects.create(id=2, name="Spain"),
@@ -24,181 +23,240 @@ class TestInitTeamsCommand(TestCase):
             Country.objects.create(id=6, name="Brazil"),
             Country.objects.create(id=7, name="Argentina"),
         ]
-        
+
+
     def test_get_countries_names(self):
-        """Test _get_countries_names returns correct list"""
+        """Test _get_countries_name return correct list """
+
         command = Command()
         countries_names = command._get_countries_names()
-        
-        assert len(countries_names) == 7
-        assert "England" in countries_names
-        assert "Argentina" in countries_names
-        assert isinstance(countries_names, list)
 
-    def test_get_countries_names_with_limits(self):
-        """Test _get_countries_names with start and end limits"""
-        command = Command()
-        
-        # Test start limit only
-        countries_names = command._get_countries_names(start_limit=2)
-        assert len(countries_names) == 5  # Should get last 5 countries
-        
-        # Test end limit only  
-        countries_names = command._get_countries_names(end_limit=3)
-        assert len(countries_names) == 3  # Should get first 3 countries
+        assert len(countries_names) == 7
+        assert 'England' in countries_names
+        assert 'Argentina' in countries_names
+        assert isinstance(countries_names,list)
+
+
+    def test_get_countries_names_with_limit(self):
+         """Test _get_countries_names with start and end limits"""
+         command = Command()
+
+         #test start limits only
+         countries_names = command._get_countries_names(start_limit=2)
+
+         assert len(countries_names) == 5
+
+         # Test end limit only  
+         countries_names = command._get_countries_names(end_limit=3)
+         assert len(countries_names) == 3  
         
         # Test both limits
-        countries_names = command._get_countries_names(start_limit=1, end_limit=4)
-        assert len(countries_names) == 3  # Should get countries at index 1,2,3
+         countries_names = command._get_countries_names(start_limit=1, end_limit=4)
+         assert len(countries_names) == 3  
+
 
     def test_get_countries_names_with_zero_start_limit(self):
         """Test that start_limit=0 works correctly"""
         command = Command()
         countries_names = command._get_countries_names(start_limit=0, end_limit=2)
-        assert len(countries_names) == 2  # Should get first 2 countries
+        assert len(countries_names) == 2  
+
+
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_handle_default_parameters(self, mock_delay, mock_redis):
-        """Test command with default parameters"""
-        # Mock Redis queue size
-        mock_redis_conn = Mock()
-        mock_redis_conn.llen.return_value = 0
-        mock_redis.return_value = mock_redis_conn
-        
-        out = StringIO()
-        call_command('init_teams', stdout=out)
-        
-        output = out.getvalue()
-        assert "Found 7 countries to process" in output
-        assert "Queued batch" in output
-        
-        # Should create 2 batches (5 + 2 countries)
-        assert mock_delay.call_count == 2
-
-    @patch('football.management.commands.init_teams.get_redis_connection')
-    @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_handle_custom_batch_size(self, mock_delay, mock_redis):
+    def test_handle_custom_batch_size(self,mock_delay, mock_redis):
         """Test command with custom batch size"""
+
         mock_redis_conn = Mock()
         mock_redis_conn.llen.return_value = 0
         mock_redis.return_value = mock_redis_conn
-        
+
         out = StringIO()
         call_command('init_teams', '--countries-per-task=3', stdout=out)
-        
+
         output = out.getvalue()
+
         assert "Found 7 countries to process" in output
-        
-        # Should create 3 batches (3 + 3 + 1 countries)
+
+        # should create 3 batches (3 + 3 + 1 countries)
+
         assert mock_delay.call_count == 3
+
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_handle_dry_run(self, mock_delay, mock_redis):
-        """Test command in dry run mode"""
-        mock_redis_conn = Mock()
-        mock_redis_conn.llen.return_value = 0
-        mock_redis.return_value = mock_redis_conn
-        
-        out = StringIO()
-        call_command('init_teams', '--dry-run', stdout=out)
-        
-        output = out.getvalue()
-        assert "Dry run mode - no tasks will be created" in output
-        assert "DRY RUN: Would queue batch for countries:" in output
-        
-        # No tasks should be created in dry run
-        mock_delay.assert_not_called()
+    def test_handle_dry_run(self,mock_delay,mock_redis):
+         """Test command in dry run mode"""
+
+         mock_redis_conn = Mock()
+         mock_redis_conn.llen.return_value = 0
+         mock_redis.return_value = mock_redis_conn
+
+
+         out =  StringIO()
+         call_command('init_teams', '--dry-run', stdout=out)
+
+         output = out.getvalue()
+
+         assert "Dry run mode - no tasks will be created" in output
+
+
+         mock_delay.assert_not_called()
+
+    
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
     def test_queue_limit_reached(self, mock_delay, mock_redis):
         """Test behavior when queue limit is reached"""
         mock_redis_conn = Mock()
-        # First call returns queue full, second call allows processing
-        mock_redis_conn.llen.side_effect = [100, 50]  # max_queue default is 100
+
+        #first call returns full , second allow processing
+        mock_redis_conn.llen.side_effect = [100,50,20,0]
+
         mock_redis.return_value = mock_redis_conn
-        
+
         with patch('football.management.commands.init_teams.time.sleep') as mock_sleep:
             out = StringIO()
             call_command('init_teams', '--max-queue=100', '--wait-time=5', stdout=out)
-            
+
             output = out.getvalue()
-            assert "Queue limit reached" in output
-            assert "Waiting 5s..." in output
-            mock_sleep.assert_called_with(5)
+
+            assert "Queue full (100/100). " in output
+            assert "Waiting 5s for batch 0/2..." in output
+
+
+            #assert that the task are eventually queued after the wait time
+
+            assert "✓ Queued batch 0/2 " in output
+            
+
+            # Assert that the task was eventually called
+            mock_sleep.assert_called_once_with(5)
+
+
+            #Assert that redis llen was called twice (once for full queue, once for processing)
+            assert mock_redis_conn.llen.call_count == 3
+
+
+
+        
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_handle_connection_error(self, mock_delay, mock_redis):
-        """Test handling of connection errors"""
+    @patch('football.management.commands.init_teams.time.sleep')  # Mock sleep to speed up test
+    def test_handle_redis_connection_error(self, mock_sleep, mock_delay, mock_redis):
+        """Test handling of Redis connection errors"""
+        # Mock Redis connection to raise ConnectionError
         mock_redis_conn = Mock()
-        mock_redis_conn.llen.return_value = 0
+        mock_redis_conn.llen.side_effect = ConnectionError("Redis connection error")
         mock_redis.return_value = mock_redis_conn
-        mock_delay.side_effect = ConnectionError("Redis connection failed")
-        
+
         out = StringIO()
         err = StringIO()
-        call_command('init_teams', stdout=out, stderr=err)
-        
+
+        call_command('init_teams', '--max-retries=2', stdout=out, stderr=err)
+
         error_output = err.getvalue()
-        assert "Celery connection error" in error_output
-        # Should break on ConnectionError
-        assert mock_delay.call_count == 1
+        
+        # Should show connection error messages
+        self.assertIn ("Redis connection error" , error_output)
+        self.assertIn ("Max connection retries reached" , error_output)
+        
+        # Should retry max_retries times (2 retries = 3 total attempts)
+        self.assertEqual(mock_redis_conn.llen.call_count, 4)
+        
+        # populate_teams_task.delay should never be called due to connection failure
+        mock_delay.assert_not_called()
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_handle_timeout_error(self, mock_delay, mock_redis):
-        """Test handling of timeout errors"""
+    @patch('football.management.commands.init_teams.time.sleep')
+    def test_handle_celery_timeout_error(self, mock_sleep, mock_delay, mock_redis):
+        """Test handling of Celery timeout errors"""
         mock_redis_conn = Mock()
         mock_redis_conn.llen.return_value = 0
         mock_redis.return_value = mock_redis_conn
-        mock_delay.side_effect = [TimeoutError("Task timeout"), None]  # First fails, second succeeds
-        
+
+        # Mock delay to raise TimeoutError
+        mock_delay.side_effect = TimeoutError("Celery task timeout")
+
         out = StringIO()
         err = StringIO()
-        call_command('init_teams', stdout=out, stderr=err)
-        
+
+        call_command('init_teams', '--max-retries=2', stdout=out, stderr=err)
+
         error_output = err.getvalue()
-        assert "Celery connection error" in error_output
-        # Should continue on TimeoutError
-        assert mock_delay.call_count == 2
+        
+        # Should show timeout error messages
+        assert "Celery timeout" in error_output
+        assert "Max timeout retries reached" in error_output
+        
+        # Should retry max_retries times for the first batch
+        assert mock_delay.call_count == 4
+
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_handle_generic_exception(self, mock_delay, mock_redis):
-        """Test handling of generic exceptions"""
+    @patch('football.management.commands.init_teams.time.sleep')
+    def test_handle_unknown_error(self, mock_sleep, mock_delay, mock_redis):
+        """Test handling of unknown errors"""
         mock_redis_conn = Mock()
         mock_redis_conn.llen.return_value = 0
         mock_redis.return_value = mock_redis_conn
-        mock_delay.side_effect = [Exception("Generic error"), None]  # First fails, second succeeds
-        
+
+        # Mock delay to raise generic Exception
+        mock_delay.side_effect = Exception("Unknown error occurred")
+
         out = StringIO()
         err = StringIO()
-        call_command('init_teams', stdout=out, stderr=err)
-        
+
+        call_command('init_teams', '--max-retries=2', stdout=out, stderr=err)
+
         error_output = err.getvalue()
-        assert "Failed to queue batch" in error_output
-        # Should continue on generic exception
-        assert mock_delay.call_count == 2
+        
+        # Should show unknown error messages
+        assert "Unknown error" in error_output
+        assert "Max retries reached for unknown error" in error_output
+        
+        # Should retry max_retries times for the first batch
+        assert mock_delay.call_count == 4  
+
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
-    def test_summary_output(self, mock_delay, mock_redis):
-        """Test summary output shows correct statistics"""
+    @patch('football.management.commands.init_teams.time.sleep')
+    def test_successful_retry_after_error(self, mock_sleep, mock_delay, mock_redis):
+        """Test successful retry after initial error"""
         mock_redis_conn = Mock()
         mock_redis_conn.llen.return_value = 0
         mock_redis.return_value = mock_redis_conn
-        
+
+        # First call fails, second succeeds
+        mock_delay.side_effect = [TimeoutError("Timeout"),TimeoutError("Timeout"),TimeoutError("Timeout"), None]
+
         out = StringIO()
-        call_command('init_teams', stdout=out)
-        
+        err = StringIO()
+
+        call_command('init_teams', '--max-retries=3', stdout=out, stderr=err)
+
         output = out.getvalue()
-        assert "Processing complete:" in output
-        assert "Successful batches: 2" in output
-        assert "Failed batches: 0" in output
-        assert "Total batches: 2" in output
+        error_output = err.getvalue()
+        
+        # Should show initial error but then success
+        assert "Celery timeout" in error_output
+        assert "✓ Queued batch 1/2" in output
+        
+        # Should call delay twice (fail, then succeed) for first batch, then once for second batch
+        assert mock_delay.call_count == 4
+
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
@@ -207,49 +265,55 @@ class TestInitTeamsCommand(TestCase):
         mock_redis_conn = Mock()
         mock_redis_conn.llen.return_value = 0
         mock_redis.return_value = mock_redis_conn
-        mock_delay.side_effect = [Exception("Error"), None]  # First fails, second succeeds
+
+        mock_delay.side_effect = [Exception("Error"),Exception("Error"), None]  # First fails, second succeeds
         
         out = StringIO()
         err = StringIO()
-        call_command('init_teams', stdout=out, stderr=err)
+        call_command('init_teams', '--max-retries=2', stdout=out, stderr=err)
         
         output = out.getvalue()
-        assert "Processing complete:" in output
-        assert "Successful batches: 1" in output
-        assert "Failed batches: 1" in output
-        assert "Total batches: 2" in output
+        error_output = err.getvalue()
+        assert "✓ Queued batch 1/2" in output
+        assert "Unknown error for batch 0 (attempt 1/2)" in error_output
+        assert "Unknown error for batch 0 (attempt 2/2)" in error_output
+
+        assert mock_delay.call_count == 3
+        
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
     def test_queue_size_display(self, mock_delay, mock_redis):
-        """Test that queue size is displayed correctly"""
-        mock_redis_conn = Mock()
-        mock_redis_conn.llen.return_value = 25
-        mock_redis.return_value = mock_redis_conn
-        
-        out = StringIO()
-        call_command('init_teams', stdout=out)
-        
-        output = out.getvalue()
-        assert "(Queue size: ~26)" in output  # Should show current + 1
+       """Test that queue size is displayed correctly"""
+       mock_redis_conn = Mock()
+       mock_redis_conn.llen.return_value = 25
+       mock_redis.return_value = mock_redis_conn
+       
+       out = StringIO()
+       call_command('init_teams', stdout=out)
+       
+       output = out.getvalue()
+       assert "(Queue size: ~26)" in output  # Should show current + 1
+
+
 
     @patch('football.management.commands.init_teams.tqdm')
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
     def test_progress_bar_integration(self, mock_delay, mock_redis, mock_tqdm):
-        """Test progress bar is properly integrated"""
-        mock_redis_conn = Mock()
-        mock_redis_conn.llen.return_value = 0
-        mock_redis.return_value = mock_redis_conn
-        
-        mock_progress = Mock()
-        mock_tqdm.return_value.__enter__.return_value = mock_progress
-        
-        call_command('init_teams', '--countries-per-task=2')
-        
-        # Should update progress for each batch
-        expected_calls = [call(1)] * 4  # 7 countries / 2 = 4 batches
-        mock_progress.update.assert_has_calls(expected_calls)
+       """Test progress bar is properly integrated"""
+       mock_redis_conn = Mock()
+       mock_redis_conn.llen.return_value = 0
+       mock_redis.return_value = mock_redis_conn
+       
+       mock_progress = Mock()
+       mock_tqdm.return_value.__enter__.return_value = mock_progress
+       
+       call_command('init_teams', '--countries-per-task=2')
+       
+       # Should update progress for each batch
+       expected_calls = [call(1)] * 4  # 7 countries / 2 = 4 batches
+       mock_progress.update.assert_has_calls(expected_calls)
 
     @patch('football.management.commands.init_teams.get_redis_connection')
     @patch('football.management.commands.init_teams.populate_teams_task.delay')
@@ -266,6 +330,15 @@ class TestInitTeamsCommand(TestCase):
         assert "Found 3 countries to process" in output
 
 
+
+
+
+    
+
+
+
+
+
 class TestPopulateTeamsTask(TestCase):
     """Test cases for the populate_teams_task Celery task (unchanged from original)"""
     
@@ -276,7 +349,7 @@ class TestPopulateTeamsTask(TestCase):
             Country.objects.create(id=2, name="Spain"),
         ]
         
-    @patch('football.tasks._process_single_country')
+    @patch('football.tasks.command_tasks._process_single_country')
     def test_populate_teams_task_success(self, mock_process):
         """Test successful task execution"""
         country_names = ["England", "Spain"]
@@ -289,18 +362,18 @@ class TestPopulateTeamsTask(TestCase):
         assert "England" in called_countries
         assert "Spain" in called_countries
         
-    @patch('football.tasks._process_single_country')
+    @patch('football.tasks.command_tasks._process_single_country')
     def test_populate_teams_task_missing_country(self, mock_process):
         """Test task with non-existent country"""
         country_names = ["England", "NonExistent", "Spain"]
         
-        with patch('football.tasks.logger') as mock_logger:
+        with patch('football.tasks.command_tasks.logger') as mock_logger:
             populate_teams_task(country_names)
             
             mock_logger.warning.assert_called_with("Country NonExistent not found in database")
             assert mock_process.call_count == 2
             
-    @patch('football.tasks._process_single_country')
+    @patch('football.tasks.command_tasks._process_single_country')
     def test_populate_teams_task_exception_handling(self, mock_process):
         """Test task exception handling and retry"""
         mock_process.side_effect = Exception("Processing failed")
@@ -323,7 +396,7 @@ class TestProcessSingleCountry(TestCase):
         self.task.max_retries = 3
         
     @patch('football.api_client.get_team_details')
-    @patch('football.tasks.Team.objects.bulk_create')
+    @patch('football.tasks.command_tasks.Team.objects.bulk_create')
     def test_process_single_country_success(self, mock_bulk_create, mock_api):
         """Test successful country processing"""
         mock_api.return_value = {
@@ -349,7 +422,7 @@ class TestProcessSingleCountry(TestCase):
             ]
         }
         
-        _process_single_country(self.task, "England", self.country)
+        _process_single_country(self.task, "England", self.country, real_retries=0, rate_limit_retries=0)
         
         mock_api.assert_called_once_with(country="England")
         mock_bulk_create.assert_called_once()

@@ -57,24 +57,28 @@ class Team(models.Model):
         ordering = ['name']
 
     def __str__(self):
-        return self.name
+        return f'{self.name}-{self.country.name}'
     
 
 class TeamFormSnapshot(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="form_snapshots")
+    league_name = models.CharField(max_length=100, null=True, blank=True)
+    league_id = models.PositiveIntegerField(null=True, blank=True)
     season = models.PositiveSmallIntegerField()
-    
     fixture_id = models.BigIntegerField(unique=True)  
-    match_date = models.DateField(db_index=True)
+    match_date = models.DateTimeField(db_index=True)
     is_home = models.BooleanField()  
-    
-    opponent_id = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="opponent_snapshots")
-    goals_for = models.PositiveSmallIntegerField()
-    goals_against = models.PositiveSmallIntegerField()
-    result = models.CharField(max_length=1, choices=[('W', 'Win'), ('L', 'Loss'), ('D', 'Draw')],blank=True, null=True)
-    
-    league = models.ForeignKey(League, on_delete=models.PROTECT)
-    matchday = models.PositiveSmallIntegerField()  
+    opponent = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="opponent_snapshots")
+    home_fulltime_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_fulltime_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_half_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_half_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_extra_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_extra_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True) 
+    result = models.CharField(max_length=5, choices=[('W', 'Win'), ('L', 'Loss'), ('D', 'Draw')],blank=True, null=True)
+    round_name = models.CharField(max_length=50, null=True, blank=True) 
     
    
     
@@ -184,10 +188,6 @@ class Fixture(models.Model):
     referee = models.CharField(max_length=100, null=True, blank=True)
     venue = models.CharField(max_length=100, null=True, blank=True)
     status = models.CharField(max_length=50, default=STATUS_NS, choices=STATUS_CHOICES)
-    head_to_head_snapshot = models.JSONField(null=True, blank=True, default=dict)
-    snapshot_processed = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Fixture"
@@ -205,3 +205,40 @@ class Fixture(models.Model):
             f"{self.date.strftime('%Y-%m-%d %H:%M')} | "
             f"{self.get_status_display()}"
         )
+
+
+
+
+class HeadToHeadMatch(models.Model):
+    fixture = models.ForeignKey(
+        'Fixture',
+        on_delete=models.CASCADE,
+        related_name='h2h_matches'
+    )
+    past_fixture_id = models.IntegerField()
+    league_name = models.CharField(max_length=100)
+    date = models.DateTimeField()
+    home_name = models.CharField(max_length=100)
+    away_name = models.CharField(max_length=100)
+    home_fulltime_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_fulltime_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_half_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_half_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_extra_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_extra_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    
+
+    class Meta:
+        verbose_name = "Head to Head Match"
+        verbose_name_plural = "Head to Head Matches"
+        ordering = ['-date']
+
+    def _str_(self):
+        return f"{self.home_name} {self.home_fulltime_goals} - {self.away_fulltime_goals} {self.away_name} on {self.date.date()}"
+    
+
+
+
+

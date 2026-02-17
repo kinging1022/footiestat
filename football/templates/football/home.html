@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.tailwindcss.com"></script>
+title>SoccerDaily</title>
+</head>
+
+<body class="bg-[#F7F9FC] text-[#1F2937]">
+
+<div class="flex min-h-screen">
+
+<!-- Sidebar -->
+
+<aside class="hidden md:flex md:w-[280px] bg-white border-r border-gray-200 flex-col">
+
+<div class="p-4 border-b">
+
+<input type="text"
+placeholder="Search..."
+class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-600">
+
+</div>
+
+<nav class="p-4 space-y-2 text-sm">
+
+<div>
+
+<button class="font-semibold">England</button>
+
+<div class="ml-4 mt-2 space-y-1">
+
+<div class="text-blue-600 bg-blue-50 px-2 py-1 rounded">
+Premier League
+</div>
+
+<div class="hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
+Championship
+</div>
+
+</div>
+
+</div>
+
+</nav>
+
+</aside>
+
+<!-- Main -->
+
+<main class="flex-1">
+
+<!-- Sticky Header -->
+
+<header class="sticky top-0 bg-white border-b z-10">
+
+<div class="flex items-center gap-4 p-4">
+
+<select class="border px-3 py-2 rounded text-sm">
+<option>All Leagues</option>
+</select>
+
+<input type="date" class="border px-3 py-2 rounded text-sm">
+
+<select class="border px-3 py-2 rounded text-sm">
+<option>Sort by Popularity</option>
+</select>
+
+</div>
+
+</header>
+
+<!-- Banner -->
+
+<div class="p-4">
+
+<div class="bg-white border border-gray-200 h-[90px] flex items-center justify-center text-gray-400">
+
+Advertisement
+
+</div>
+
+</div>
+
+<!-- Match Cards -->
+
+<div class="p-4 space-y-4">
+
+<!-- Match Card -->
+
+<div class="bg-white border rounded p-4 hover:border-gray-400 transition">
+
+<div class="flex justify-between items-center">
+
+<div>
+
+<h2 class="font-semibold">
+
+Manchester United vs Liverpool
+
+</h2>
+
+<div class="text-sm text-gray-500">
+
+Premier League • 18:30
+
+</div>
+
+</div>
+
+<div class="text-sm text-gray-500">
+
+👁 12,542
+
+</div>
+
+</div>
+
+<div class="grid grid-cols-4 gap-4 items-center mt-4">
+
+<div class="grid grid-cols-3 col-span-3 text-center">
+
+<div>
+
+<div class="font-bold text-lg">1.95</div>
+
+<div class="text-xs text-gray-500">Home</div>
+
+</div>
+
+<div>
+
+<div class="font-bold text-lg">3.40</div>
+
+<div class="text-xs text-gray-500">Draw</div>
+
+</div>
+
+<div>
+
+<div class="font-bold text-lg">4.20</div>
+
+<div class="text-xs text-gray-500">Away</div>
+
+</div>
+
+</div>
+
+<button class="border border-blue-600 text-blue-600 px-4 py-2 rounded text-sm hover:bg-blue-600 hover:text-white">
+
+View Stats
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+</main>
+
+</div>
+
+</body>
+
+</html>

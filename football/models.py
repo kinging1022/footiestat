@@ -1,5 +1,5 @@
 from django.db import models
-
+from django.utils import timezone
 
 class Country(models.Model):
     name = models.CharField(max_length=100, verbose_name="Country Name", unique=True)
@@ -241,4 +241,158 @@ class HeadToHeadMatch(models.Model):
 
 
 
+class FixtureIngestion(models.Model):
+    fixture = models.OneToOneField(Fixture, related_name='ingestion', on_delete= models.CASCADE, primary_key=True)
 
+    #ingestion flags
+    needs_h2h = models.BooleanField(default=True)
+    needs_form = models.BooleanField(default=True)
+    needs_standings = models.BooleanField(default=True)
+    needs_advanced_stats = models.BooleanField(default=True)
+
+    # Processing timestamps
+    h2h_processed_at = models.DateTimeField(null=True, blank=True)
+    form_processed_at = models.DateTimeField(null=True, blank=True)
+    standings_processed_at = models.DateTimeField(null=True, blank=True)
+    advanced_stats_processed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Retry tracking
+    h2h_retry_count = models.IntegerField(default=0)
+    form_retry_count = models.IntegerField(default=0)
+    standings_retry_count = models.IntegerField(default=0)
+    advanced_stats_retry_count = models.IntegerField(default=0)
+
+    # Error tracking
+    last_error = models.TextField(null=True, blank=True)
+    
+    # CRITICAL: Mark when fixture is ready for display
+    is_fully_processed = models.BooleanField(default=False, db_index=True)
+    fully_processed_at = models.DateTimeField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['needs_h2h', 'h2h_retry_count']),
+            models.Index(fields=['needs_form', 'form_retry_count']),
+            models.Index(fields=['needs_standings', 'standings_retry_count']),
+            models.Index(fields=['needs_advanced_stats']),
+            models.Index(fields=['is_fully_processed']),  # For quick user queries
+        ]
+
+    def check_and_mark_complete(self):
+             if not any([
+                self.needs_h2h,
+                self.needs_form,
+                self.needs_standings,
+                self.needs_advanced_stats
+             ]):
+                self.is_fully_processed = True
+                self.fully_processed_at = timezone.now()
+                self.save(update_fields=['is_fully_processed', 'fully_processed_at','updated_at'])
+    
+        
+        
+
+    @property
+    def processing_percentage(self):
+        """Get completion percentage"""
+        total = 4
+        completed = sum([
+            not self.needs_h2h,
+            not self.needs_form,
+            not self.needs_standings,
+            not self.needs_advanced_stats
+        ])
+        return (completed / total) * 100
+
+
+
+# models.py
+
+class FixtureAdvancedStats(models.Model):
+   
+    fixture = models.OneToOneField(
+        Fixture, 
+        on_delete=models.CASCADE, 
+        primary_key=True,
+        related_name='advanced_stats'
+    )
+    
+    # === HOME TEAM STATS ===
+    
+    # Last 5 matches overall (any home/away)
+    home_last_5_form = models.JSONField(
+        default=list, 
+        help_text="Last 5 matches overall"
+    )
+    
+    # Last 5 home matches (is_home=True)
+    home_last_5_home_form = models.JSONField(
+        default=list, 
+        help_text="Last 5 home matches only"
+    )
+    
+    # Last 5 vs teams in similar standing position
+    home_last_5_vs_similar_rank = models.JSONField(
+        default=list, 
+        help_text="Last 5 vs teams near opponent's rank (±3 positions)"
+    )
+    
+    # Aggregated stats - Overall (last 5 any matches)
+    home_wins_last_5 = models.PositiveSmallIntegerField(default=0)
+    home_draws_last_5 = models.PositiveSmallIntegerField(default=0)
+    home_losses_last_5 = models.PositiveSmallIntegerField(default=0)
+    home_goals_scored_last_5 = models.PositiveSmallIntegerField(default=0)
+    home_goals_conceded_last_5 = models.PositiveSmallIntegerField(default=0)
+    
+    # Aggregated stats - Home only (last 5 home matches)
+    home_home_wins_last_5 = models.PositiveSmallIntegerField(default=0)
+    home_home_draws_last_5 = models.PositiveSmallIntegerField(default=0)
+    home_home_losses_last_5 = models.PositiveSmallIntegerField(default=0)
+    
+    # === AWAY TEAM STATS ===
+    
+    # Last 5 matches overall (any home/away)
+    away_last_5_form = models.JSONField(
+        default=list,
+        help_text="Last 5 matches overall"
+    )
+    
+    # Last 5 away matches (is_home=False)
+    away_last_5_away_form = models.JSONField(
+        default=list, 
+        help_text="Last 5 away matches only"
+    )
+    
+    # Last 5 vs teams in similar standing position
+    away_last_5_vs_similar_rank = models.JSONField(
+        default=list,
+        help_text="Last 5 vs teams near opponent's rank (±3 positions)"
+    )
+    
+    # Aggregated stats - Overall (last 5 any matches)
+    away_wins_last_5 = models.PositiveSmallIntegerField(default=0)
+    away_draws_last_5 = models.PositiveSmallIntegerField(default=0)
+    away_losses_last_5 = models.PositiveSmallIntegerField(default=0)
+    away_goals_scored_last_5 = models.PositiveSmallIntegerField(default=0)
+    away_goals_conceded_last_5 = models.PositiveSmallIntegerField(default=0)
+    
+    # Aggregated stats - Away only (last 5 away matches)
+    away_away_wins_last_5 = models.PositiveSmallIntegerField(default=0)
+    away_away_draws_last_5 = models.PositiveSmallIntegerField(default=0)
+    away_away_losses_last_5 = models.PositiveSmallIntegerField(default=0)
+    
+    # === META ===
+    computed_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Fixture Advanced Stats"
+        verbose_name_plural = "Fixture Advanced Stats"
+    
+    def __str__(self):
+        return f"Advanced stats for {self.fixture}"

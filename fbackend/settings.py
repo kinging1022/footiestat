@@ -35,8 +35,19 @@ API_KEY = os.getenv('API_KEY')
 
 # Celery settings
 CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0' 
+
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_RESULT_EXPIRES = 3600  
+
+
+
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+
 
 
 CACHES = {
@@ -58,8 +69,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_beat',
     #app
     'football',
+
+
+
 ]
 
 MIDDLEWARE = [

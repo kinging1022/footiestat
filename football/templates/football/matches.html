@@ -1,0 +1,84 @@
+<!-- football/matches.html -->
+{% if fixtures %}
+<div class="league-section">
+  {% if league_info %}
+  <div class="league-header">
+    {% if league_info.logo %}
+    <img src="{{ league_info.logo }}" alt="{{ league_info.name }}" class="league-header-logo">
+    {% endif %}
+    <div class="league-header-text">
+      <span class="league-header-country">{{ league_info.country }}</span>
+      <span class="league-header-name">{{ league_info.name }}</span>
+    </div>
+    <span class="league-header-count">{{ fixtures|length }} matches</span>
+  </div>
+  {% endif %}
+
+  <div class="league-matches">
+    {% for fixture in fixtures %}
+    <article class="match-card">
+      <div class="match-header">
+        <time class="match-time">{{ fixture.date|date:"H:i" }}</time>
+        {% if fixture.status == 'LIVE' or fixture.status == '1H' or fixture.status == '2H' %}
+        <span class="status-badge live">● LIVE</span>
+        {% elif fixture.status == 'FT' %}
+        <span class="status-badge ft">FT</span>
+        {% endif %}
+      </div>
+
+      <div class="match-teams">
+        <div class="team home">
+          {% if fixture.home_team.logo %}
+          <img src="{{ fixture.home_team.logo }}" alt="{{ fixture.home_team.name }}" class="team-logo">
+          {% else %}
+          <div class="team-logo-placeholder"></div>
+          {% endif %}
+          <span class="team-name">{{ fixture.home_team.name }}</span>
+        </div>
+
+        <span class="vs-divider">VS</span>
+
+        <div class="team away">
+          {% if fixture.away_team.logo %}
+          <img src="{{ fixture.away_team.logo }}" alt="{{ fixture.away_team.name }}" class="team-logo">
+          {% else %}
+          <div class="team-logo-placeholder"></div>
+          {% endif %}
+          <span class="team-name">{{ fixture.away_team.name }}</span>
+        </div>
+      </div>
+
+      <div class="match-footer">
+        <div class="view-count">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <span class="view-number">{% widthratio fixture.id 1 47 %}.{{ fixture.id|add:3|divisibleby:7|yesno:"2,8" }}k</span>
+          <span class="view-label">watching</span>
+        </div>
+
+        <button class="stats-btn-prominent" onclick="alert('Stats for {{ fixture.home_team.name }} vs {{ fixture.away_team.name }}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          FULL STATS
+        </button>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="matches-placeholder">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 48px; height: 48px; color: var(--border-2); margin: 0 auto 16px;">
+    <rect x="3" y="3" width="7" height="7"></rect>
+    <rect x="14" y="3" width="7" height="7"></rect>
+    <rect x="14" y="14" width="7" height="7"></rect>
+    <rect x="3" y="14" width="7" height="7"></rect>
+  </svg>
+  <p>No fixtures available for this selection.</p>
+</div>
+{% endif %}

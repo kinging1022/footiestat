@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SoccerDaily</title>
+
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:         #f4f4f0;
+      --surface:    #ffffff;
+      --border:     #e2e2dc;
+      --border-2:   #d0d0c8;
+      --text:       #1a1a18;
+      --text-muted: #6b6b65;
+      --green:      #1a4731;
+      --green-dim:  #2d6b4a;
+      --lime:       #4caf50;
+      --red:        #d93025;
+      --ticker-bg:  #1a4731;
+      --ticker-fg:  #ffffff;
+
+      --font-head: 'Bebas Neue', sans-serif;
+      --font-body: 'DM Mono', monospace;
+
+      --ticker-h: 36px;
+      --nav-h:    60px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── TICKER ─────────────────────────────────────────────── */
+    .ticker-wrap {
+      height: var(--ticker-h);
+      background: var(--ticker-bg);
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;         /* clips the whole row        */
+    }
+
+    .ticker-badge {
+      /* fixed-width pill — never scrolls */
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 18px;
+      background: var(--green-dim);
+      color: #fff;
+      font-family: var(--font-head);
+      font-size: 14px;
+      letter-spacing: .14em;
+      white-space: nowrap;
+      z-index: 1;
+      position: relative;
+
+      /* angled right edge */
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%);
+      padding-right: 26px;
+    }
+
+    .ticker-badge .dot {
+      width: 6px; height: 6px;
+      background: #b5f033;
+      border-radius: 50%;
+      animation: blink 1.1s step-start infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* the scrolling part lives in its own overflow:hidden box */
+    .ticker-track {
+      flex: 1;
+      overflow: hidden;          /* THIS is what clips the text */
+      display: flex;
+      align-items: center;
+    }
+
+    .ticker-scroll {
+      display: flex;
+      white-space: nowrap;
+      animation: marquee 36s linear infinite;
+      color: rgba(255,255,255,.88);
+      font-size: 12.5px;
+      letter-spacing: .04em;
+      padding-left: 32px;
+    }
+    .ticker-scroll:hover { animation-play-state: paused; }
+    .ticker-scroll span  { margin-right: 80px; }
+    .ticker-scroll span::before { content: "⚽  "; opacity: .7; }
+
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    /* ── AD BANNER ───────────────────────────────────────────── */
+    .ad-strip {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px clamp(16px, 4vw, 48px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .ad-inner {
+      width: 100%;
+      max-width: 728px;
+      height: 90px;
+      border: 1px dashed var(--border-2);
+      border-radius: 4px;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .ad-inner::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg,
+        transparent 0%, rgba(0,0,0,.02) 50%, transparent 100%);
+      animation: shimmer 4s ease-in-out infinite;
+    }
+    @keyframes shimmer { 0%,100%{opacity:0} 50%{opacity:1} }
+
+    .ad-label { font-family: var(--font-head); font-size: 12px; letter-spacing: .18em; color: var(--border-2); }
+    .ad-dims  { font-size: 11px; color: var(--border-2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 3px; }
+
+    /* ── NAV ─────────────────────────────────────────────────── */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: var(--nav-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 clamp(16px, 4vw, 48px);
+      box-shadow: 0 1px 0 var(--border), 0 4px 16px rgba(0,0,0,.04);
+    }
+
+    .nav-logo {
+      text-decoration: none;
+      display: flex;
+      align-items: baseline;
+      gap: 0;
+      margin-right: auto;
+    }
+    .nav-logo .w1 {
+      font-family: var(--font-head);
+      font-size: 28px;
+      letter-spacing: .06em;
+      color: var(--text);
+    }
+    .nav-logo .sep {
+      display: inline-block;
+      width: 3px; height: 18px;
+      background: var(--green);
+      margin: 0 5px;
+      vertical-align: middle;
+      border-radius: 1px;
+    }
+    .nav-logo .w2 {
+      font-family: var(--font-head);
+      font-size: 28px;
+      letter-spacing: .06em;
+      color: var(--green);
+    }
+
+    .nav-links { display: flex; height: 100%; list-style: none; }
+
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 100%;
+      padding: 0 22px;
+      font-family: var(--font-head);
+      font-size: 17px;
+      letter-spacing: .1em;
+      color: var(--text-muted);
+      text-decoration: none;
+      position: relative;
+      transition: color .18s;
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 14px; right: 14px;
+      height: 2px;
+      background: var(--green);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .2s cubic-bezier(.4,0,.2,1);
+    }
+    .nav-links a:hover,
+    .nav-links a.active { color: var(--text); }
+    .nav-links a:hover::after,
+    .nav-links a.active::after { transform: scaleX(1); }
+
+    .live-tag {
+      background: var(--red);
+      color: #fff;
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: .1em;
+      padding: 1px 6px 0;
+      border-radius: 2px;
+    }
+
+    /* ── MAIN ────────────────────────────────────────────────── */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: clamp(16px, 4vw, 48px);
+    }
+
+    /* ── ENTRY ANIMATIONS ────────────────────────────────────── */
+    .ticker-wrap { animation: fd .4s ease both; }
+    .ad-strip    { animation: fd .4s .06s ease both; }
+    .nav         { animation: fd .4s .12s ease both; }
+    .main        { animation: fu .4s .2s ease both; }
+
+    @keyframes fd { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+    @keyframes fu { from{opacity:0;transform:translateY(10px)}  to{opacity:1;transform:none} }
+
+    @media (max-width: 600px) {
+      .nav-logo .w1, .nav-logo .w2 { font-size: 22px; }
+      .nav-links a { padding: 0 14px; font-size: 15px; }
+      .ad-inner    { height: 64px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ① TICKER -->
+  <div class="ticker-wrap" role="marquee" aria-label="Site announcements">
+    <div class="ticker-badge">
+      <span class="dot"></span>
+      NEWS
+    </div>
+    <div class="ticker-track">
+      <div class="ticker-scroll">
+        <span>Welcome to SoccerDaily — your daily source for live scores, match analysis, transfer news and expert football coverage</span>
+        <span>SoccerDaily brings you real-time updates, in-depth tactical breakdowns and the stories that shape the beautiful game</span>
+        <span>From the Premier League to La Liga, Serie A to the Bundesliga — SoccerDaily has every matchday covered</span>
+        <!-- duplicate for seamless loop -->
+        <span>Welcome to SoccerDaily — your daily source for live scores, match analysis, transfer news and expert football coverage</span>
+        <span>SoccerDaily brings you real-time updates, in-depth tactical breakdowns and the stories that shape the beautiful game</span>
+        <span>From the Premier League to La Liga, Serie A to the Bundesliga — SoccerDaily has every matchday covered</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② AD BANNER -->
+  <div class="ad-strip" aria-label="Advertisement placeholder">
+    <div class="ad-inner">
+      <span class="ad-label">Advertisement</span>
+      <span class="ad-dims">728 × 90</span>
+    </div>
+  </div>
+
+  <!-- ③ NAV -->
+  <nav class="nav" aria-label="Primary navigation">
+    <a href="/" class="nav-logo">
+      <span class="w1">SOCCER</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="w2">DAILY</span>
+    </a>
+    <ul class="nav-links" role="list">
+      <li>
+        <a href="/matches"
+           hx-get="/matches"
+           hx-target="#main-content"
+           hx-push-url="true"
+           class="active">
+          MATCHES
+          <span class="live-tag">LIVE</span>
+        </a>
+      </li>
+      <li>
+        <a href="/blog"
+           hx-get="/blog"
+           hx-target="#main-content"
+           hx-push-url="true">
+          BLOG
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- ④ CONTENT -->
+  <main class="main" id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    function syncNav() {
+      const path = window.location.pathname;
+      document.querySelectorAll('.nav-links a').forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === path);
+      });
+    }
+    document.addEventListener('DOMContentLoaded', syncNav);
+    document.addEventListener('htmx:afterSettle', syncNav);
+  </script>
+
+</body>
+</html>

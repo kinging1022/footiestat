@@ -1,167 +1,951 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<script src="https://cdn.tailwindcss.com"></script>
-title>SoccerDaily</title>
-</head>
+{% extends "football/base.html" %}
 
-<body class="bg-[#F7F9FC] text-[#1F2937]">
+{% block content %}
 
-<div class="flex min-h-screen">
+<style>
+  /* ── DATE SECTION ────────────────────────────────────────── */
+  .date-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 40px;  /* ← Increased spacing */
+  }
 
-<!-- Sidebar -->
+  .date-section-label {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .22em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
 
-<aside class="hidden md:flex md:w-[280px] bg-white border-r border-gray-200 flex-col">
+  .date-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px;
+    display: inline-flex;
+    gap: 3px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+  }
 
-<div class="p-4 border-b">
+  /* ── DATE PILLS ──────────────────────────────────────────── */
+  .date-pill {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 18px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    min-width: 68px;
+    font-family: var(--font-body);
+    transition: background .16s, border-color .16s, box-shadow .16s;
+    outline: none;
+  }
 
-<input type="text"
-placeholder="Search..."
-class="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-600">
+  .date-pill:hover {
+    background: var(--bg);
+    border-color: var(--border-2);
+  }
+
+  .date-pill:focus-visible {
+    box-shadow: 0 0 0 2px var(--green);
+  }
+
+  .date-pill.active {
+    background: var(--green);
+    border-color: var(--green);
+    box-shadow: 0 2px 10px rgba(26,71,49,.2);
+  }
+
+  .today-dot {
+    display: none;
+    position: absolute;
+    top: 6px; left: 50%;
+    transform: translateX(-50%);
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  .date-pill.is-today .today-dot        { display: block; }
+  .date-pill.is-today.active .today-dot { background: rgba(255,255,255,.55); }
+
+  .pill-day {
+    font-family: var(--font-head);
+    font-size: 10px;
+    letter-spacing: .16em;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+  .date-pill.active .pill-day { color: rgba(255,255,255,.65); }
+
+  .pill-num {
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--text);
+  }
+  .date-pill.active .pill-num { color: #fff; }
+
+  .pill-mon {
+    font-size: 10px;
+    letter-spacing: .08em;
+    color: var(--text-muted);
+  }
+  .date-pill.active .pill-mon { color: rgba(255,255,255,.6); }
+
+  /* ── CONTENT LAYOUT ──────────────────────────────────────── */
+  .content-wrapper {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* ── SIDEBAR (ORIGINAL DESIGN) ───────────────────────────── */
+  .sidebar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    position: sticky;
+    top: calc(var(--nav-h) + 16px);
+  }
+
+  .sidebar-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+  }
+
+  .sidebar-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: .14em;
+    color: var(--text);
+  }
+
+  .fixtures-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1px 8px;
+    border-radius: 3px;
+  }
+
+  .sidebar-body {
+    max-height: calc(100vh - var(--nav-h) - 120px);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar-body::-webkit-scrollbar { width: 6px; }
+  .sidebar-body::-webkit-scrollbar-track { background: var(--bg); }
+  .sidebar-body::-webkit-scrollbar-thumb {
+    background: var(--border-2);
+    border-radius: 3px;
+  }
+  .sidebar-body::-webkit-scrollbar-thumb:hover { background: var(--green-dim); }
+
+  .sidebar-empty {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: .04em;
+  }
+
+  /* ── COUNTRY ACCORDION ───────────────────────────────────── */
+  .country-block {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .country-block:last-child { border-bottom: none; }
+
+  .country-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    background: var(--surface);
+    border: none;
+    width: 100%;
+    text-align: left;
+    transition: background .14s;
+    font-family: var(--font-body);
+  }
+
+  .country-head:hover { background: var(--bg); }
+
+  .country-head .chevron {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    transition: transform .2s;
+    flex-shrink: 0;
+  }
+
+  .country-block.open .country-head .chevron {
+    transform: rotate(90deg);
+  }
+
+  .country-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    color: var(--text);
+  }
+
+  .country-total {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* ── LEAGUES LIST ────────────────────────────────────────── */
+  .leagues-list {
+    display: none;
+    background: var(--bg);
+    padding: 4px 0;
+  }
+
+  .country-block.open .leagues-list { display: block; }
+
+  .league-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px 40px;
+    cursor: pointer;
+    transition: background .14s;
+    border-left: 2px solid transparent;
+  }
+
+  .league-item:hover {
+    background: var(--surface);
+    border-left-color: var(--green);
+  }
+
+  .league-item.active {
+    background: rgba(26,71,49,.06);
+    border-left-color: var(--green);
+  }
+
+  .league-logo {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .league-name {
+    flex: 1;
+    font-size: 12px;
+    letter-spacing: .02em;
+    color: var(--text);
+  }
+
+  .league-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  /* ── MATCHES SECTION ─────────────────────────────────────── */
+  .matches-section {
+    min-height: 400px;
+  }
+
+  .section-head-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;  /* ← Added spacing */
+  }
+
+  .sidebar-toggle-inline {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    cursor: pointer;
+    color: var(--text);
+    transition: all .16s;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-toggle-inline:hover {
+    border-color: var(--green);
+    background: rgba(26,71,49,.06);
+    color: var(--green);
+  }
+
+  .sidebar-toggle-inline svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex: 1;
+  }
+
+  .section-head h2 {
+    font-family: var(--font-head);
+    font-size: 20px;
+    letter-spacing: .1em;
+    color: var(--text);
+  }
+
+  .date-caption {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: .04em;
+  }
+
+  .matches-area {
+    min-height: 200px;
+    transition: opacity .2s;
+  }
+
+  .matches-placeholder {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: .04em;
+  }
+
+  .matches-area.htmx-request {
+    opacity: .4;
+    pointer-events: none;
+  }
+
+  /* ── LEAGUE SECTION ──────────────────────────────────────── */
+  .league-section {
+    margin-bottom: 32px;
+  }
+
+  .league-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .league-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(26,71,49,.08) 0%, rgba(26,71,49,.04) 100%);
+    border: 1px solid var(--border);
+    border-radius: 6px 6px 0 0;
+    border-bottom: 2px solid var(--green);
+  }
+
+  .league-header-logo {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .league-header-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .league-header-country {
+    font-size: 10px;
+    letter-spacing: .12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-family: var(--font-head);
+  }
+
+  .league-header-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--green);  /* ← Green color to distinguish */
+    letter-spacing: .04em;
+  }
+
+  .league-header-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2px 10px;
+    border-radius: 3px;
+  }
+
+  /* ── LEAGUE MATCHES GRID ─────────────────────────────────── */
+  .league-matches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+  }
+
+  /* ── MATCH CARD ──────────────────────────────────────────── */
+  .match-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    transition: all .18s;
+  }
+
+  .match-card:hover {
+    border-color: var(--green);
+    box-shadow: 0 4px 12px rgba(26,71,49,.15);
+    transform: translateY(-2px);
+  }
+
+  .match-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .match-time {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: .04em;
+  }
+
+  .status-badge {
+    font-family: var(--font-head);
+    font-size: 9px;
+    letter-spacing: .14em;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  .status-badge.live {
+    background: var(--red);
+    color: #fff;
+    animation: pulse-badge 1.5s ease-in-out infinite;
+  }
+
+  .status-badge.ft {
+    background: rgba(26,71,49,.15);
+    color: var(--green);
+  }
+
+  @keyframes pulse-badge {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .75; }
+  }
+
+  .match-teams {
+    padding: 16px 12px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .team {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .team.away {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+
+  .team-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .team-logo-placeholder {
+    width: 32px;
+    height: 32px;
+    background: var(--border);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .team-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: .02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .vs-divider {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .14em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* ── MATCH FOOTER ────────────────────────────────────────── */
+  .match-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .view-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .view-count svg {
+    width: 16px;
+    height: 16px;
+    color: var(--red);
+    flex-shrink: 0;
+  }
+
+  .view-number {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    font-family: var(--font-body);
+  }
+
+  .view-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: .02em;
+  }
+
+  .stats-btn-prominent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--green);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .16em;
+    color: #fff;
+    cursor: pointer;
+    transition: all .18s;
+    box-shadow: 0 2px 6px rgba(26,71,49,.2);
+  }
+
+  .stats-btn-prominent:hover {
+    background: var(--green-dim);
+    box-shadow: 0 4px 10px rgba(26,71,49,.3);
+    transform: translateY(-1px);
+  }
+
+  .stats-btn-prominent svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* ── RESPONSIVE ──────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .content-wrapper {
+      grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      z-index: 200;
+      transform: translateX(-100%);
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      border-radius: 0;
+      border-left: none;
+      box-shadow: none;
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 4px 0 24px rgba(0,0,0,.12);
+    }
+
+    .sidebar-toggle-inline {
+      display: flex;
+    }
+
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.3);
+      z-index: 190;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .sidebar-overlay.visible {
+      display: block;
+      opacity: 1;
+    }
+
+    .sidebar-head {
+      padding-top: 20px;
+    }
+
+    .sidebar-body {
+      max-height: calc(100vh - 80px);
+    }
+
+    .league-matches {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .date-pill { min-width: 52px; padding: 9px 10px; }
+    .pill-num  { font-size: 18px; }
+    .pill-day,
+    .pill-mon  { font-size: 9px; }
+    .sidebar { width: 260px; }
+    .team-name { font-size: 12px; }
+  }
+</style>
+
+
+<!-- ① DATE SELECTOR -->
+<div class="date-section">
+  <span class="date-section-label">MATCHDAY</span>
+
+  <div class="date-container" role="group" aria-label="Select a match date">
+    {% for date in dates %}
+    <button
+      class="date-pill {% if date.iso == selected_date %}active{% endif %} {% if date.is_today %}is-today{% endif %}"
+      data-date="{{ date.iso }}"
+      data-label="{{ date.label }}"
+      aria-pressed="{% if date.iso == selected_date %}true{% else %}false{% endif %}"
+      aria-label="{{ date.label }}"
+      hx-get="{% url 'home' %}?date={{ date.iso }}"
+      hx-target="#content-container"
+      hx-swap="outerHTML"
+    >
+      <span class="today-dot" aria-hidden="true"></span>
+      <span class="pill-day">{{ date.day }}</span>
+      <span class="pill-num">{{ date.num }}</span>
+      <span class="pill-mon">{{ date.mon }}</span>
+    </button>
+    {% endfor %}
+  </div>
+</div>
+
+
+<!-- ② CONTENT: SIDEBAR + MATCHES -->
+<div class="content-wrapper" id="content-container">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar" role="navigation" aria-label="Leagues filter">
+    <div class="sidebar-head">
+      <span class="sidebar-title">LEAGUES</span>
+      <span class="fixtures-count">{{ total_fixtures }} matches</span>
+    </div>
+
+    <div class="sidebar-body">
+      {% if countries %}
+        {% for country in countries %}
+        <div class="country-block {% if forloop.first %}open{% endif %}" data-country="{{ country.name }}">
+          
+          <button class="country-head" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+            <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 4 10 8 6 12"/>
+            </svg>
+            <span class="country-name">{{ country.name }}</span>
+            <span class="country-total">{{ country.total_matches }}</span>
+          </button>
+
+          <div class="leagues-list">
+            {% for league in country.leagues %}
+            <div 
+              class="league-item" 
+              data-league-id="{{ league.id }}"
+              role="button"
+              tabindex="0"
+            >
+              {% if league.logo %}
+              <img src="{{ league.logo }}" alt="{{ league.name }} logo" class="league-logo">
+              {% else %}
+              <div class="league-logo" style="background: var(--border); border-radius: 50%;"></div>
+              {% endif %}
+              <span class="league-name">{{ league.name }}</span>
+              <span class="league-count">{{ league.count }}</span>
+            </div>
+            {% endfor %}
+          </div>
+
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="sidebar-empty">
+          No leagues available for this date.
+        </div>
+      {% endif %}
+    </div>
+  </aside>
+
+  <!-- MATCHES -->
+  <main class="matches-section">
+    <div class="section-head-wrapper">
+      <button class="sidebar-toggle-inline" id="sidebarToggle" aria-label="Toggle leagues sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+
+      <div class="section-head">
+        <h2>MATCHES</h2>
+        <span class="date-caption" id="date-caption"></span>
+      </div>
+    </div>
+
+    <div class="matches-area" id="matches-area">
+      {% if leagues_with_fixtures %}
+        {% for league_group in leagues_with_fixtures %}
+        <div class="league-section">
+          <div class="league-header">
+            {% if league_group.league_logo %}
+            <img src="{{ league_group.league_logo }}" alt="{{ league_group.league_name }}" class="league-header-logo">
+            {% endif %}
+            <div class="league-header-text">
+              <span class="league-header-country">{{ league_group.country }}</span>
+              <span class="league-header-name">{{ league_group.league_name }}</span>
+            </div>
+            <span class="league-header-count">{{ league_group.fixtures|length }} matches</span>
+          </div>
+
+          <div class="league-matches">
+            {% for fixture in league_group.fixtures %}
+            <article class="match-card">
+              <div class="match-header">
+                <time class="match-time">{{ fixture.date|date:"H:i" }}</time>
+                {% if fixture.status == 'LIVE' or fixture.status == '1H' or fixture.status == '2H' %}
+                <span class="status-badge live">● LIVE</span>
+                {% elif fixture.status == 'FT' %}
+                <span class="status-badge ft">FT</span>
+                {% endif %}
+              </div>
+
+              <div class="match-teams">
+                <div class="team home">
+                  {% if fixture.home_team.logo %}
+                  <img src="{{ fixture.home_team.logo }}" alt="{{ fixture.home_team.name }}" class="team-logo">
+                  {% else %}
+                  <div class="team-logo-placeholder"></div>
+                  {% endif %}
+                  <span class="team-name">{{ fixture.home_team.name }}</span>
+                </div>
+
+                <span class="vs-divider">VS</span>
+
+                <div class="team away">
+                  {% if fixture.away_team.logo %}
+                  <img src="{{ fixture.away_team.logo }}" alt="{{ fixture.away_team.name }}" class="team-logo">
+                  {% else %}
+                  <div class="team-logo-placeholder"></div>
+                  {% endif %}
+                  <span class="team-name">{{ fixture.away_team.name }}</span>
+                </div>
+              </div>
+
+              <div class="match-footer">
+                <div class="view-count">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <span class="view-number">{% widthratio fixture.id 1 47 %}.{{ fixture.id|add:3|divisibleby:7|yesno:"2,8" }}k</span>
+                  <span class="view-label">watching</span>
+                </div>
+
+                <button class="stats-btn-prominent">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                  </svg>
+                  FULL STATS
+                </button>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="matches-placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 48px; height: 48px; color: var(--border-2); margin: 0 auto 16px;">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <p>No fixtures available for this date.</p>
+        </div>
+      {% endif %}
+    </div>
+  </main>
 
 </div>
 
-<nav class="p-4 space-y-2 text-sm">
 
-<div>
-
-<button class="font-semibold">England</button>
-
-<div class="ml-4 mt-2 space-y-1">
-
-<div class="text-blue-600 bg-blue-50 px-2 py-1 rounded">
-Premier League
-</div>
-
-<div class="hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
-Championship
-</div>
-
-</div>
-
-</div>
-
-</nav>
-
-</aside>
-
-<!-- Main -->
-
-<main class="flex-1">
-
-<!-- Sticky Header -->
-
-<header class="sticky top-0 bg-white border-b z-10">
-
-<div class="flex items-center gap-4 p-4">
-
-<select class="border px-3 py-2 rounded text-sm">
-<option>All Leagues</option>
-</select>
-
-<input type="date" class="border px-3 py-2 rounded text-sm">
-
-<select class="border px-3 py-2 rounded text-sm">
-<option>Sort by Popularity</option>
-</select>
-
-</div>
-
-</header>
-
-<!-- Banner -->
-
-<div class="p-4">
-
-<div class="bg-white border border-gray-200 h-[90px] flex items-center justify-center text-gray-400">
-
-Advertisement
-
-</div>
-
-</div>
-
-<!-- Match Cards -->
-
-<div class="p-4 space-y-4">
-
-<!-- Match Card -->
-
-<div class="bg-white border rounded p-4 hover:border-gray-400 transition">
-
-<div class="flex justify-between items-center">
-
-<div>
-
-<h2 class="font-semibold">
-
-Manchester United vs Liverpool
-
-</h2>
-
-<div class="text-sm text-gray-500">
-
-Premier League • 18:30
-
-</div>
-
-</div>
-
-<div class="text-sm text-gray-500">
-
-👁 12,542
-
-</div>
-
-</div>
-
-<div class="grid grid-cols-4 gap-4 items-center mt-4">
-
-<div class="grid grid-cols-3 col-span-3 text-center">
-
-<div>
-
-<div class="font-bold text-lg">1.95</div>
-
-<div class="text-xs text-gray-500">Home</div>
-
-</div>
-
-<div>
-
-<div class="font-bold text-lg">3.40</div>
-
-<div class="text-xs text-gray-500">Draw</div>
-
-</div>
-
-<div>
-
-<div class="font-bold text-lg">4.20</div>
-
-<div class="text-xs text-gray-500">Away</div>
-
-</div>
-
-</div>
-
-<button class="border border-blue-600 text-blue-600 px-4 py-2 rounded text-sm hover:bg-blue-600 hover:text-white">
-
-View Stats
-
-</button>
-
-</div>
-
-</div>
-
-</div>
-
-</main>
-
-</div>
-
-</body>
-
-</html>
+<!-- overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+
+<script>
+  // ── HANDLE DATE PILL CLICKS ──────────────────────────────
+  document.querySelectorAll('.date-pill').forEach(pill => {
+    pill.addEventListener('click', function() {
+      // Remove active from all pills
+      document.querySelectorAll('.date-pill').forEach(p => {
+        p.classList.remove('active');
+        p.setAttribute('aria-pressed', 'false');
+      });
+      
+      // Set this pill as active
+      this.classList.add('active');
+      this.setAttribute('aria-pressed', 'true');
+      
+      // Update date caption immediately
+      const caption = document.getElementById('date-caption');
+      if (caption) {
+        caption.textContent = this.getAttribute('data-label');
+      }
+    });
+  });
+
+  // ── HTMX AFTER SWAP ──────────────────────────────────────
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'content-container') {
+      initializePage();
+    }
+  });
+
+  // ── INITIALIZE PAGE ──────────────────────────────────────
+  function initializePage() {
+    // Set date caption
+    const activePill = document.querySelector('.date-pill.active');
+    const caption = document.getElementById('date-caption');
+    if (activePill && caption) {
+      caption.textContent = activePill.getAttribute('data-label');
+    }
+
+    // Country accordion
+    document.querySelectorAll('.country-head').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const block = this.closest('.country-block');
+        const isOpen = block.classList.contains('open');
+        
+        block.classList.toggle('open');
+        this.setAttribute('aria-expanded', !isOpen);
+      });
+    });
+
+    // League filter
+    document.querySelectorAll('.league-item').forEach(item => {
+      item.addEventListener('click', function() {
+        document.querySelectorAll('.league-item').forEach(i => 
+          i.classList.remove('active')
+        );
+        this.classList.add('active');
+
+        const leagueId = this.dataset.leagueId;
+        const selectedDate = document.querySelector('.date-pill.active')?.dataset.date;
+        
+        if (leagueId && selectedDate) {
+          htmx.ajax('GET', 
+            `{% url 'matches' %}?date=${selectedDate}&league=${leagueId}`, 
+            '#matches-area'
+          );
+        }
+      });
+    });
+
+    // Mobile sidebar
+    const sidebar = document.getElementById('sidebar');
+    const toggle = document.getElementById('sidebarToggle');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    function openSidebar() {
+      sidebar?.classList.add('open');
+      overlay?.classList.add('visible');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      sidebar?.classList.remove('open');
+      overlay?.classList.remove('visible');
+      document.body.style.overflow = '';
+    }
+
+    toggle?.addEventListener('click', function() {
+      if (sidebar?.classList.contains('open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
+    });
+
+    overlay?.addEventListener('click', closeSidebar);
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && sidebar?.classList.contains('open')) {
+        closeSidebar();
+      }
+    });
+  }
+
+  // Initialize on page load
+  initializePage();
+</script>
+
+{% endblock %}

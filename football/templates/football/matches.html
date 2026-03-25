@@ -1,4 +1,81 @@
 <!-- football/matches.html -->
+<style>
+  /* ── STATS BUTTON FIX ────────────────────────────────────── */
+  .match-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    position: relative;
+    z-index: 1;
+  }
+
+  .view-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .view-count svg {
+    width: 16px;
+    height: 16px;
+    color: var(--red);
+    flex-shrink: 0;
+  }
+
+  .view-number {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    font-family: var(--font-body);
+  }
+
+  .view-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: .02em;
+  }
+
+  .stats-btn-prominent {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--green);
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .16em;
+    color: #fff;
+    cursor: pointer;
+    transition: all .18s;
+    box-shadow: 0 2px 6px rgba(26,71,49,.2);
+    text-decoration: none;
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
+  }
+
+  .stats-btn-prominent:hover {
+    background: var(--green-dim);
+    box-shadow: 0 4px 10px rgba(26,71,49,.3);
+    transform: translateY(-1px);
+  }
+
+  .stats-btn-prominent:active {
+    transform: translateY(0);
+  }
+
+  .stats-btn-prominent svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+</style>
+
 {% if fixtures %}
 <div class="league-section">
   {% if league_info %}
@@ -58,13 +135,16 @@
           <span class="view-label">watching</span>
         </div>
 
-        <button class="stats-btn-prominent" onclick="alert('Stats for {{ fixture.home_team.name }} vs {{ fixture.away_team.name }}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-          FULL STATS
+        <button 
+            class="stats-btn-prominent"
+            onclick="window.location.href='/fixture/{{ fixture.id }}/stats/'"
+            type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            FULL STATS
         </button>
       </div>
     </article>

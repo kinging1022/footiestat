@@ -42,12 +42,30 @@ class Command(BaseCommand):
             raise
 
 
-
     def _fetch_leagues(self):
-        """Fetch leagues and filter by priority"""
-        raw_data = get_league_details(season=2025)
-        return raw_data['response']  
-       
+        all_items = {}
+        
+        for season in [2025, 2026]:
+            raw_data = get_league_details(season=season)
+            response = raw_data['response']
+            self.stdout.write(f"Season {season}: {len(response)} leagues")
+            
+            for item in response:
+                league_id = item['league']['id']
+                # 2026 data overwrites 2025 if same league exists in both
+                all_items[league_id] = item
+
+        response = list(all_items.values())
+        
+        self.stdout.write(
+            self.style.SUCCESS(f"Total unique leagues after merge: {len(response)}")
+        )
+        
+        return response
+
+
+
+    
 
     def _process_countries(self, leagues_data):
         """Process and bulk create countries"""

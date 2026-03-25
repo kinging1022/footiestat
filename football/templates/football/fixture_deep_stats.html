@@ -1,0 +1,907 @@
+{% extends "football/base.html" %}
+
+{% block content %}
+<style>
+  .ds-wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 16px 48px;
+  }
+
+  /* ── BACK LINK ───────────────────────────────────────────── */
+  .ds-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-bottom: 20px;
+    transition: color 0.2s;
+  }
+  .ds-back:hover { color: var(--green); }
+  .ds-back svg { width: 13px; height: 13px; }
+
+  /* ── MATCH HEADER ────────────────────────────────────────── */
+  .ds-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+
+  .ds-header-league {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .ds-header-league img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+  .ds-header-league-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .ds-header-league-country {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .ds-header-league-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .ds-header-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .ds-header-teams {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0;
+    padding: 28px 24px;
+  }
+
+  .ds-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .ds-team-logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+  }
+  .ds-team-name {
+    font-family: var(--font-head);
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .ds-scoreline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 24px;
+  }
+  .ds-score-ft {
+    font-family: var(--font-head);
+    font-size: 36px;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    line-height: 1;
+  }
+  .ds-score-sub {
+    display: flex;
+    gap: 12px;
+  }
+  .ds-score-sub-item {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .ds-score-sub-item span {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .ds-no-score {
+    font-family: var(--font-head);
+    font-size: 24px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+
+  .ds-header-footer {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 10px 20px 14px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .ds-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .ds-meta-item svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .ds-meta-item strong { color: var(--text); font-weight: 500; }
+
+  /* ── EMPTY STATE ─────────────────────────────────────────── */
+  .ds-empty-state {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .ds-empty-teams {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 24px 24px;
+  }
+
+  .ds-empty-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ds-empty-logo {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    opacity: 0.6;
+    filter: grayscale(30%);
+  }
+
+  .ds-empty-team-name {
+    font-family: var(--font-head);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .ds-empty-score-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ds-empty-score {
+    font-family: var(--font-head);
+    font-size: 30px;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .ds-empty-score.muted {
+    color: var(--text-muted);
+    font-size: 22px;
+  }
+
+  .ds-empty-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .ds-empty-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0 24px;
+  }
+
+  .ds-empty-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 24px 36px;
+    text-align: center;
+  }
+
+  .ds-empty-icon svg {
+    width: 32px;
+    height: 32px;
+    color: var(--border);
+    margin-bottom: 4px;
+  }
+
+  .ds-empty-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    color: var(--text);
+  }
+
+  .ds-empty-body {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    max-width: 340px;
+  }
+
+  /* ── SECTION ─────────────────────────────────────────────── */
+  .ds-section {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .ds-section-head {
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .ds-section-title {
+    font-family: var(--font-head);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: var(--green);
+    margin: 0;
+  }
+  .ds-section-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── STAT ROW ────────────────────────────────────────────── */
+  .ds-stat-row {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ds-stat-row:last-child { border-bottom: none; }
+
+  .ds-stat-val {
+    font-family: var(--font-head);
+    font-size: 20px;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  .ds-stat-val.home { text-align: right; }
+  .ds-stat-val.away { text-align: left; }
+
+  .ds-stat-mid { display: flex; flex-direction: column; gap: 5px; }
+
+  .ds-stat-label {
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    text-align: center;
+    font-family: var(--font-body);
+  }
+
+  .ds-bar-track {
+    height: 20px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+    display: flex;
+    border: 1px solid var(--border);
+  }
+
+  .ds-bar-track.ds-bar-empty {
+    background: var(--border);
+    opacity: 1;
+  }
+
+  .ds-bar-fill {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    transition: width 0.6s ease;
+  }
+  .ds-bar-fill.home {
+    background: #3d6e8f;
+    justify-content: flex-end;
+    padding-right: 6px;
+  }
+  .ds-bar-fill.away {
+    background: var(--green);
+    justify-content: flex-start;
+    padding-left: 6px;
+  }
+  .ds-bar-pct {
+    font-size: 9px;
+    color: rgba(255,255,255,0.85);
+    font-family: var(--font-body);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── RESPONSIVE ──────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .ds-header-teams { padding: 20px 14px; }
+    .ds-team-logo { width: 42px; height: 42px; }
+    .ds-team-name { font-size: 12px; }
+    .ds-scoreline { padding: 0 12px; }
+    .ds-score-ft { font-size: 28px; }
+    .ds-score-sub { flex-direction: column; align-items: center; gap: 3px; }
+    .ds-stat-row {
+      grid-template-columns: 44px 1fr 44px;
+      gap: 10px;
+      padding: 11px 14px;
+    }
+    .ds-stat-val { font-size: 17px; }
+    .ds-stat-label { font-size: 9px; }
+    .ds-empty-teams { padding: 24px 14px 20px; gap: 10px; }
+    .ds-empty-logo { width: 38px; height: 38px; }
+    .ds-empty-team-name { font-size: 11px; }
+    .ds-empty-score { font-size: 22px; }
+    .ds-empty-score.muted { font-size: 17px; }
+    .ds-empty-message { padding: 20px 14px 28px; }
+    .ds-empty-title { font-size: 13px; }
+    .ds-empty-body { font-size: 11px; }
+  }
+
+  @media (max-width: 400px) {
+    .ds-team-logo { width: 34px; height: 34px; }
+    .ds-team-name { font-size: 11px; }
+    .ds-score-ft { font-size: 22px; }
+    .ds-stat-row {
+      grid-template-columns: 36px 1fr 36px;
+      gap: 8px;
+      padding: 10px;
+    }
+    .ds-stat-val { font-size: 15px; }
+  }
+</style>
+
+<div class="ds-wrap">
+
+  <!-- BACK LINK -->
+  {% if has_stats %}
+  <a href="{% url 'fixture_stats' fixture.id fixture.slug %}" class="ds-back">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M19 12H5M12 19l-7-7 7-7"/>
+    </svg>
+    BACK TO OVERVIEW
+  </a>
+  {% endif %}
+
+  <!-- MATCH HEADER — always shown regardless of stats availability -->
+  <div class="ds-header">
+
+    <div class="ds-header-league">
+      {% if fixture.league.logo %}
+      <img src="{{ fixture.league.logo }}" alt="{{ fixture.league.name }}">
+      {% endif %}
+      <div class="ds-header-league-text">
+        <div class="ds-header-league-country">{{ fixture.league.country.name }}</div>
+        <div class="ds-header-league-name">{{ fixture.league.name }}</div>
+      </div>
+      {% if stats.date %}
+      <div class="ds-header-date">{{ stats.date|date:"d M Y" }}</div>
+      {% endif %}
+    </div>
+
+    <div class="ds-header-teams">
+
+      <div class="ds-team">
+        {% if home_team_logo %}
+        <img src="{{ home_team_logo }}" alt="{{ past_match_home_name }}" class="ds-team-logo">
+        {% endif %}
+        <div class="ds-team-name">{{ past_match_home_name }}</div>
+      </div>
+
+      <div class="ds-scoreline">
+        {% if past_score.home_ft is not None and past_score.away_ft is not None %}
+          <div class="ds-score-ft">{{ past_score.home_ft }} – {{ past_score.away_ft }}</div>
+          <div class="ds-score-sub">
+            {% if past_score.home_ht is not None %}
+            <div class="ds-score-sub-item">
+              HT <span>{{ past_score.home_ht }}–{{ past_score.away_ht }}</span>
+            </div>
+            {% endif %}
+            {% if past_score.home_pen is not None %}
+            <div class="ds-score-sub-item">
+              PEN <span>{{ past_score.home_pen }}–{{ past_score.away_pen }}</span>
+            </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="ds-no-score">— VS —</div>
+        {% endif %}
+      </div>
+
+      <div class="ds-team">
+        {% if away_team_logo %}
+        <img src="{{ away_team_logo }}" alt="{{ past_match_away_name }}" class="ds-team-logo">
+        {% endif %}
+        <div class="ds-team-name">{{ past_match_away_name }}</div>
+      </div>
+
+    </div>
+
+    {% if fixture.venue or fixture.referee %}
+    <div class="ds-header-footer">
+      {% if fixture.venue %}
+      <div class="ds-meta-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <strong>{{ fixture.venue }}</strong>
+      </div>
+      {% endif %}
+      {% if fixture.referee %}
+      <div class="ds-meta-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        <strong>{{ fixture.referee }}</strong>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div><!-- /.ds-header -->
+
+
+  {% if not has_stats %}
+
+  <!-- ── NO STATS EMPTY STATE ──────────────────────────────── -->
+  <div class="ds-empty-state">
+    <div class="ds-empty-teams">
+      <div class="ds-empty-team">
+        {% if home_team_logo %}
+        <img src="{{ home_team_logo }}" alt="{{ past_match_home_name }}" class="ds-empty-logo">
+        {% endif %}
+        <span class="ds-empty-team-name">{{ past_match_home_name }}</span>
+      </div>
+      <div class="ds-empty-score-area">
+        {% if past_score.home_ft is not None and past_score.away_ft is not None %}
+        <div class="ds-empty-score">{{ past_score.home_ft }} – {{ past_score.away_ft }}</div>
+        {% else %}
+        <div class="ds-empty-score muted">— VS —</div>
+        {% endif %}
+        {% if stats.date %}
+        <div class="ds-empty-date">{{ stats.date|date:"d M Y" }}</div>
+        {% endif %}
+      </div>
+      <div class="ds-empty-team">
+        {% if away_team_logo %}
+        <img src="{{ away_team_logo }}" alt="{{ past_match_away_name }}" class="ds-empty-logo">
+        {% endif %}
+        <span class="ds-empty-team-name">{{ past_match_away_name }}</span>
+      </div>
+    </div>
+
+    <div class="ds-empty-divider"></div>
+
+    <div class="ds-empty-message">
+      <div class="ds-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="ds-empty-title">No Statistics Available</div>
+      <div class="ds-empty-body">
+        Detailed statistics were not recorded for this match.
+        This is common for lower division fixtures and older historical matches.
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+
+  <!-- ── SHOOTING ──────────────────────────────────────────── -->
+  <div class="ds-section">
+    <div class="ds-section-head">
+      <h3 class="ds-section-title">SHOOTING</h3>
+    </div>
+
+    {% with h=stats.home_shots_on_goal|default:0 a=stats.away_shots_on_goal|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Shots on Goal</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_shots_off_goal|default:0 a=stats.away_shots_off_goal|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Shots off Goal</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_total_shots|default:0 a=stats.away_total_shots|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Total Shots</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_blocked_shots|default:0 a=stats.away_blocked_shots|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Blocked Shots</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_shots_insidebox|default:0 a=stats.away_shots_insidebox|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Inside Box</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_shots_outsidebox|default:0 a=stats.away_shots_outsidebox|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Outside Box</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% if stats.home_expected_goals or stats.away_expected_goals %}
+    {% with h=stats.home_expected_goals|default:0 a=stats.away_expected_goals|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Expected Goals (xG)</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+    {% endif %}
+
+  </div>
+
+  <!-- ── POSSESSION & PASSING ──────────────────────────────── -->
+  <div class="ds-section">
+    <div class="ds-section-head">
+      <h3 class="ds-section-title">POSSESSION & PASSING</h3>
+    </div>
+
+    {% with h=stats.home_ball_possession|default:0 a=stats.away_ball_possession|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}%</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Ball Possession</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          <div class="ds-bar-fill home" style="width:{{ h }}%">{% if h > 15 %}<span class="ds-bar-pct">{{ h }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ a }}%">{% if a > 15 %}<span class="ds-bar-pct">{{ a }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}%</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_total_passes|default:0 a=stats.away_total_passes|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Total Passes</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_passes_accurate|default:0 a=stats.away_passes_accurate|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Accurate Passes</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_passes_percentage|default:0 a=stats.away_passes_percentage|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}%</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Pass Accuracy</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          <div class="ds-bar-fill home" style="width:{{ h }}%">{% if h > 15 %}<span class="ds-bar-pct">{{ h }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ a }}%">{% if a > 15 %}<span class="ds-bar-pct">{{ a }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}%</div>
+    </div>
+    {% endwith %}
+
+  </div>
+
+  <!-- ── DEFENCE ────────────────────────────────────────────── -->
+  <div class="ds-section">
+    <div class="ds-section-head">
+      <h3 class="ds-section-title">DEFENCE</h3>
+    </div>
+
+    {% with h=stats.home_goalkeeper_saves|default:0 a=stats.away_goalkeeper_saves|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Goalkeeper Saves</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_corner_kicks|default:0 a=stats.away_corner_kicks|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Corner Kicks</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_offsides|default:0 a=stats.away_offsides|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Offsides</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% if stats.home_goals_prevented or stats.away_goals_prevented %}
+    {% with h=stats.home_goals_prevented|default:0 a=stats.away_goals_prevented|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Goals Prevented</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+    {% endif %}
+
+  </div>
+
+  <!-- ── DISCIPLINE ─────────────────────────────────────────── -->
+  <div class="ds-section">
+    <div class="ds-section-head">
+      <h3 class="ds-section-title">DISCIPLINE</h3>
+    </div>
+
+    {% with h=stats.home_fouls|default:0 a=stats.away_fouls|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Fouls</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_yellow_cards|default:0 a=stats.away_yellow_cards|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Yellow Cards</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%">{% if hp > 15 %}<span class="ds-bar-pct">{{ hp }}%</span>{% endif %}</div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%">{% if ap > 15 %}<span class="ds-bar-pct">{{ ap }}%</span>{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+    {% with h=stats.home_red_cards|default:0 a=stats.away_red_cards|default:0 %}
+    <div class="ds-stat-row">
+      <div class="ds-stat-val home">{{ h }}</div>
+      <div class="ds-stat-mid">
+        <div class="ds-stat-label">Red Cards</div>
+        {% if h == 0 and a == 0 %}
+        <div class="ds-bar-track ds-bar-empty"></div>
+        {% else %}
+        <div class="ds-bar-track">
+          {% widthratio h h|add:a 100 as hp %}{% widthratio a h|add:a 100 as ap %}
+          <div class="ds-bar-fill home" style="width:{{ hp|default:0 }}%"></div>
+          <div class="ds-bar-fill away" style="width:{{ ap|default:0 }}%"></div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="ds-stat-val away">{{ a }}</div>
+    </div>
+    {% endwith %}
+
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

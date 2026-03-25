@@ -1,14 +1,118 @@
 {% extends "football/base.html" %}
 
-{% block content %}
+{% block nav_extra %}
+<button class="nav-sidebar-trigger" id="sidebarTrigger" aria-label="Open leagues sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <line x1="3" y1="6" x2="21" y2="6"></line>
+    <line x1="3" y1="12" x2="21" y2="12"></line>
+    <line x1="3" y1="18" x2="21" y2="18"></line>
+  </svg>
+  <span class="trigger-label">LEAGUES</span>
+</button>
+{% endblock %}
 
+{% block page_sidebar %}
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="sidebar-drawer" id="sidebarDrawer">
+  <div class="drawer-head">
+    <div class="drawer-head-left">
+      <div class="drawer-head-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+      </div>
+      <span class="drawer-title">LEAGUES</span>
+    </div>
+    <div class="drawer-head-right">
+      <span class="drawer-match-count" id="drawer-match-count">{{ total_fixtures }} matches</span>
+      <button class="drawer-close" id="drawerClose" aria-label="Close sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="drawer-body">
+    <div id="sidebar-body-inner">
+      {% if countries %}
+        {% for country in countries %}
+        <div class="country-block {% if forloop.first %}open{% endif %}">
+          <button class="country-head" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+            <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 4 10 8 6 12"/>
+            </svg>
+            <span class="country-name">{{ country.name }}</span>
+            <span class="country-total">{{ country.total_fixtures }}</span>
+          </button>
+          <div class="leagues-list">
+            {% for league in country.leagues %}
+            <div class="league-item" data-league-id="{{ league.id }}">
+              {% if league.logo %}
+              <img src="{{ league.logo }}" alt="{{ league.name }}" class="league-item-logo">
+              {% else %}
+              <div class="league-item-logo-placeholder"></div>
+              {% endif %}
+              <div class="league-item-info">
+                <div class="league-item-name">
+                  {{ league.name }}
+                  {% if league.is_priority %}
+                  <span class="priority-badge">TOP</span>
+                  {% endif %}
+                </div>
+              </div>
+              <span class="league-item-count">{{ league.count }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="drawer-empty">No leagues available for this date.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  const sidebarDrawer  = document.getElementById('sidebarDrawer');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  const sidebarTrigger = document.getElementById('sidebarTrigger');
+
+  function openSidebar() {
+    sidebarDrawer.classList.add('open');
+    sidebarOverlay.classList.add('visible');
+    sidebarTrigger.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSidebar() {
+    sidebarDrawer.classList.remove('open');
+    sidebarOverlay.classList.remove('visible');
+    sidebarTrigger.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  sidebarTrigger.addEventListener('click', openSidebar);
+  sidebarOverlay.addEventListener('click', closeSidebar);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
+
+  window.closeSidebar = closeSidebar;
+</script>
+{% endblock %}
+
+
+{% block content %}
 <style>
-  /* ── DATE SECTION ────────────────────────────────────────── */
   .date-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 40px;  /* ← Increased spacing */
+    margin-bottom: 32px;
   }
 
   .date-section-label {
@@ -26,10 +130,8 @@
     padding: 5px;
     display: inline-flex;
     gap: 3px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
   }
 
-  /* ── DATE PILLS ──────────────────────────────────────────── */
   .date-pill {
     position: relative;
     display: flex;
@@ -43,7 +145,7 @@
     cursor: pointer;
     min-width: 68px;
     font-family: var(--font-body);
-    transition: background .16s, border-color .16s, box-shadow .16s;
+    transition: background .16s, border-color .16s;
     outline: none;
   }
 
@@ -52,26 +154,24 @@
     border-color: var(--border-2);
   }
 
-  .date-pill:focus-visible {
-    box-shadow: 0 0 0 2px var(--green);
-  }
-
   .date-pill.active {
     background: var(--green);
     border-color: var(--green);
-    box-shadow: 0 2px 10px rgba(26,71,49,.2);
   }
 
   .today-dot {
     display: none;
     position: absolute;
-    top: 6px; left: 50%;
+    top: 6px;
+    left: 50%;
     transform: translateX(-50%);
-    width: 4px; height: 4px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     background: var(--green);
   }
-  .date-pill.is-today .today-dot        { display: block; }
+
+  .date-pill.is-today .today-dot { display: block; }
   .date-pill.is-today.active .today-dot { background: rgba(255,255,255,.55); }
 
   .pill-day {
@@ -81,6 +181,7 @@
     color: var(--text-muted);
     margin-top: 8px;
   }
+
   .date-pill.active .pill-day { color: rgba(255,255,255,.65); }
 
   .pill-num {
@@ -89,6 +190,7 @@
     line-height: 1;
     color: var(--text);
   }
+
   .date-pill.active .pill-num { color: #fff; }
 
   .pill-mon {
@@ -96,221 +198,19 @@
     letter-spacing: .08em;
     color: var(--text-muted);
   }
+
   .date-pill.active .pill-mon { color: rgba(255,255,255,.6); }
 
-  /* ── CONTENT LAYOUT ──────────────────────────────────────── */
-  .content-wrapper {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 24px;
-    align-items: start;
-  }
-
-  /* ── SIDEBAR (ORIGINAL DESIGN) ───────────────────────────── */
-  .sidebar {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-    position: sticky;
-    top: calc(var(--nav-h) + 16px);
-  }
-
-  .sidebar-head {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--bg);
-  }
-
-  .sidebar-title {
-    font-family: var(--font-head);
-    font-size: 14px;
-    letter-spacing: .14em;
-    color: var(--text);
-  }
-
-  .fixtures-count {
-    font-size: 11px;
-    color: var(--text-muted);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    padding: 1px 8px;
-    border-radius: 3px;
-  }
-
-  .sidebar-body {
-    max-height: calc(100vh - var(--nav-h) - 120px);
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  .sidebar-body::-webkit-scrollbar { width: 6px; }
-  .sidebar-body::-webkit-scrollbar-track { background: var(--bg); }
-  .sidebar-body::-webkit-scrollbar-thumb {
-    background: var(--border-2);
-    border-radius: 3px;
-  }
-  .sidebar-body::-webkit-scrollbar-thumb:hover { background: var(--green-dim); }
-
-  .sidebar-empty {
-    padding: 48px 20px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 12px;
-    letter-spacing: .04em;
-  }
-
-  /* ── COUNTRY ACCORDION ───────────────────────────────────── */
-  .country-block {
-    border-bottom: 1px solid var(--border);
-  }
-
-  .country-block:last-child { border-bottom: none; }
-
-  .country-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    cursor: pointer;
-    background: var(--surface);
-    border: none;
-    width: 100%;
-    text-align: left;
-    transition: background .14s;
-    font-family: var(--font-body);
-  }
-
-  .country-head:hover { background: var(--bg); }
-
-  .country-head .chevron {
-    width: 14px;
-    height: 14px;
-    color: var(--text-muted);
-    transition: transform .2s;
-    flex-shrink: 0;
-  }
-
-  .country-block.open .country-head .chevron {
-    transform: rotate(90deg);
-  }
-
-  .country-name {
-    flex: 1;
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: .04em;
-    color: var(--text);
-  }
-
-  .country-total {
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  /* ── LEAGUES LIST ────────────────────────────────────────── */
-  .leagues-list {
-    display: none;
-    background: var(--bg);
-    padding: 4px 0;
-  }
-
-  .country-block.open .leagues-list { display: block; }
-
-  .league-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px 10px 40px;
-    cursor: pointer;
-    transition: background .14s;
-    border-left: 2px solid transparent;
-  }
-
-  .league-item:hover {
-    background: var(--surface);
-    border-left-color: var(--green);
-  }
-
-  .league-item.active {
-    background: rgba(26,71,49,.06);
-    border-left-color: var(--green);
-  }
-
-  .league-logo {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-    flex-shrink: 0;
-  }
-
-  .league-name {
-    flex: 1;
-    font-size: 12px;
-    letter-spacing: .02em;
-    color: var(--text);
-  }
-
-  .league-count {
-    font-size: 10px;
-    color: var(--text-muted);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    padding: 1px 6px;
-    border-radius: 2px;
-  }
-
-  /* ── MATCHES SECTION ─────────────────────────────────────── */
-  .matches-section {
-    min-height: 400px;
-  }
-
-  .section-head-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;  /* ← Added spacing */
-  }
-
-  .sidebar-toggle-inline {
-    display: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 6px;
-    background: var(--surface);
-    border: 1px solid var(--border-2);
-    cursor: pointer;
-    color: var(--text);
-    transition: all .16s;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .sidebar-toggle-inline:hover {
-    border-color: var(--green);
-    background: rgba(26,71,49,.06);
-    color: var(--green);
-  }
-
-  .sidebar-toggle-inline svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .section-head {
+  .matches-header {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    flex: 1;
+    margin-bottom: 20px;
   }
 
-  .section-head h2 {
+  .matches-header h2 {
     font-family: var(--font-head);
-    font-size: 20px;
+    font-size: 24px;
     letter-spacing: .1em;
     color: var(--text);
   }
@@ -321,35 +221,79 @@
     letter-spacing: .04em;
   }
 
+  .display-mode-badge {
+    font-family: var(--font-head);
+    font-size: 10px;
+    letter-spacing: .1em;
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: rgba(26,71,49,.1);
+    color: var(--green);
+  }
+
+  .skeleton-section { margin-bottom: 32px; }
+
+  .skeleton-league-header {
+    height: 52px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px 6px 0 0;
+    border-bottom: 2px solid var(--border-2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+  }
+
+  .skeleton-pulse {
+    background: linear-gradient(90deg, var(--border) 25%, var(--border-2) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: sk-shimmer 1.4s ease infinite;
+    border-radius: 3px;
+  }
+
+  @keyframes sk-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .skeleton-circle {
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, var(--border) 25%, var(--border-2) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: sk-shimmer 1.4s ease infinite;
+  }
+
+  .skeleton-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+  }
+
+  .skeleton-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .skeleton-row { display: flex; align-items: center; gap: 10px; }
+
   .matches-area {
-    min-height: 200px;
+    min-height: 300px;
     transition: opacity .2s;
   }
 
-  .matches-placeholder {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 48px 24px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 13px;
-    letter-spacing: .04em;
-  }
-
-  .matches-area.htmx-request {
-    opacity: .4;
-    pointer-events: none;
-  }
-
-  /* ── LEAGUE SECTION ──────────────────────────────────────── */
-  .league-section {
-    margin-bottom: 32px;
-  }
-
-  .league-section:last-child {
-    margin-bottom: 0;
-  }
+  .league-section { margin-bottom: 32px; }
 
   .league-header {
     display: flex;
@@ -387,7 +331,7 @@
   .league-header-name {
     font-size: 14px;
     font-weight: 500;
-    color: var(--green);  /* ← Green color to distinguish */
+    color: var(--green);
     letter-spacing: .04em;
   }
 
@@ -400,7 +344,6 @@
     border-radius: 3px;
   }
 
-  /* ── LEAGUE MATCHES GRID ─────────────────────────────────── */
   .league-matches {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -412,7 +355,6 @@
     border-radius: 0 0 6px 6px;
   }
 
-  /* ── MATCH CARD ──────────────────────────────────────────── */
   .match-card {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -464,7 +406,7 @@
 
   @keyframes pulse-badge {
     0%, 100% { opacity: 1; }
-    50% { opacity: .75; }
+    50%       { opacity: .75; }
   }
 
   .match-teams {
@@ -475,24 +417,10 @@
     align-items: center;
   }
 
-  .team {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-  }
+  .team { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .team.away { flex-direction: row-reverse; text-align: right; }
 
-  .team.away {
-    flex-direction: row-reverse;
-    text-align: right;
-  }
-
-  .team-logo {
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-    flex-shrink: 0;
-  }
+  .team-logo { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
 
   .team-logo-placeholder {
     width: 32px;
@@ -520,7 +448,6 @@
     flex-shrink: 0;
   }
 
-  /* ── MATCH FOOTER ────────────────────────────────────────── */
   .match-footer {
     display: flex;
     align-items: center;
@@ -530,34 +457,15 @@
     background: var(--surface);
   }
 
-  .view-count {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
+  .view-count { display: flex; align-items: center; gap: 6px; }
 
-  .view-count svg {
-    width: 16px;
-    height: 16px;
-    color: var(--red);
-    flex-shrink: 0;
-  }
+  .view-count svg { width: 16px; height: 16px; color: var(--red); flex-shrink: 0; }
 
-  .view-number {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text);
-    font-family: var(--font-body);
-  }
-
-  .view-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    letter-spacing: .02em;
-  }
+  .view-number { font-size: 14px; font-weight: 500; color: var(--text); }
+  .view-label  { font-size: 11px; color: var(--text-muted); letter-spacing: .02em; }
 
   .stats-btn-prominent {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
     background: var(--green);
@@ -570,105 +478,47 @@
     color: #fff;
     cursor: pointer;
     transition: all .18s;
-    box-shadow: 0 2px 6px rgba(26,71,49,.2);
+    text-decoration: none;
   }
 
   .stats-btn-prominent:hover {
     background: var(--green-dim);
-    box-shadow: 0 4px 10px rgba(26,71,49,.3);
     transform: translateY(-1px);
   }
 
-  .stats-btn-prominent svg {
-    width: 14px;
-    height: 14px;
+  .stats-btn-prominent svg { width: 14px; height: 14px; }
+
+  .matches-placeholder {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 64px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: .04em;
   }
 
-  /* ── RESPONSIVE ──────────────────────────────────────────── */
-  @media (max-width: 900px) {
-    .content-wrapper {
-      grid-template-columns: 1fr;
-    }
-
-    .sidebar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 280px;
-      z-index: 200;
-      transform: translateX(-100%);
-      transition: transform .3s cubic-bezier(.4,0,.2,1);
-      border-radius: 0;
-      border-left: none;
-      box-shadow: none;
-    }
-
-    .sidebar.open {
-      transform: translateX(0);
-      box-shadow: 4px 0 24px rgba(0,0,0,.12);
-    }
-
-    .sidebar-toggle-inline {
-      display: flex;
-    }
-
-    .sidebar-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.3);
-      z-index: 190;
-      opacity: 0;
-      transition: opacity .3s;
-    }
-
-    .sidebar-overlay.visible {
-      display: block;
-      opacity: 1;
-    }
-
-    .sidebar-head {
-      padding-top: 20px;
-    }
-
-    .sidebar-body {
-      max-height: calc(100vh - 80px);
-    }
-
-    .league-matches {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 480px) {
+  @media (max-width: 600px) {
     .date-pill { min-width: 52px; padding: 9px 10px; }
     .pill-num  { font-size: 18px; }
-    .pill-day,
-    .pill-mon  { font-size: 9px; }
-    .sidebar { width: 260px; }
-    .team-name { font-size: 12px; }
+    .pill-day, .pill-mon { font-size: 9px; }
+    .league-matches  { grid-template-columns: 1fr; }
+    .skeleton-cards  { grid-template-columns: 1fr; }
   }
 </style>
 
-
-<!-- ① DATE SELECTOR -->
+<!-- DATE SELECTOR -->
 <div class="date-section">
   <span class="date-section-label">MATCHDAY</span>
-
-  <div class="date-container" role="group" aria-label="Select a match date">
+  <div class="date-container">
     {% for date in dates %}
     <button
       class="date-pill {% if date.iso == selected_date %}active{% endif %} {% if date.is_today %}is-today{% endif %}"
       data-date="{{ date.iso }}"
       data-label="{{ date.label }}"
-      aria-pressed="{% if date.iso == selected_date %}true{% else %}false{% endif %}"
-      aria-label="{{ date.label }}"
-      hx-get="{% url 'home' %}?date={{ date.iso }}"
-      hx-target="#content-container"
-      hx-swap="outerHTML"
     >
-      <span class="today-dot" aria-hidden="true"></span>
+      <span class="today-dot"></span>
       <span class="pill-day">{{ date.day }}</span>
       <span class="pill-num">{{ date.num }}</span>
       <span class="pill-mon">{{ date.mon }}</span>
@@ -677,275 +527,130 @@
   </div>
 </div>
 
-
-<!-- ② CONTENT: SIDEBAR + MATCHES -->
-<div class="content-wrapper" id="content-container">
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar" id="sidebar" role="navigation" aria-label="Leagues filter">
-    <div class="sidebar-head">
-      <span class="sidebar-title">LEAGUES</span>
-      <span class="fixtures-count">{{ total_fixtures }} matches</span>
-    </div>
-
-    <div class="sidebar-body">
-      {% if countries %}
-        {% for country in countries %}
-        <div class="country-block {% if forloop.first %}open{% endif %}" data-country="{{ country.name }}">
-          
-          <button class="country-head" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
-            <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 4 10 8 6 12"/>
-            </svg>
-            <span class="country-name">{{ country.name }}</span>
-            <span class="country-total">{{ country.total_matches }}</span>
-          </button>
-
-          <div class="leagues-list">
-            {% for league in country.leagues %}
-            <div 
-              class="league-item" 
-              data-league-id="{{ league.id }}"
-              role="button"
-              tabindex="0"
-            >
-              {% if league.logo %}
-              <img src="{{ league.logo }}" alt="{{ league.name }} logo" class="league-logo">
-              {% else %}
-              <div class="league-logo" style="background: var(--border); border-radius: 50%;"></div>
-              {% endif %}
-              <span class="league-name">{{ league.name }}</span>
-              <span class="league-count">{{ league.count }}</span>
-            </div>
-            {% endfor %}
-          </div>
-
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="sidebar-empty">
-          No leagues available for this date.
-        </div>
-      {% endif %}
-    </div>
-  </aside>
-
-  <!-- MATCHES -->
-  <main class="matches-section">
-    <div class="section-head-wrapper">
-      <button class="sidebar-toggle-inline" id="sidebarToggle" aria-label="Toggle leagues sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
-
-      <div class="section-head">
-        <h2>MATCHES</h2>
-        <span class="date-caption" id="date-caption"></span>
-      </div>
-    </div>
-
-    <div class="matches-area" id="matches-area">
-      {% if leagues_with_fixtures %}
-        {% for league_group in leagues_with_fixtures %}
-        <div class="league-section">
-          <div class="league-header">
-            {% if league_group.league_logo %}
-            <img src="{{ league_group.league_logo }}" alt="{{ league_group.league_name }}" class="league-header-logo">
-            {% endif %}
-            <div class="league-header-text">
-              <span class="league-header-country">{{ league_group.country }}</span>
-              <span class="league-header-name">{{ league_group.league_name }}</span>
-            </div>
-            <span class="league-header-count">{{ league_group.fixtures|length }} matches</span>
-          </div>
-
-          <div class="league-matches">
-            {% for fixture in league_group.fixtures %}
-            <article class="match-card">
-              <div class="match-header">
-                <time class="match-time">{{ fixture.date|date:"H:i" }}</time>
-                {% if fixture.status == 'LIVE' or fixture.status == '1H' or fixture.status == '2H' %}
-                <span class="status-badge live">● LIVE</span>
-                {% elif fixture.status == 'FT' %}
-                <span class="status-badge ft">FT</span>
-                {% endif %}
-              </div>
-
-              <div class="match-teams">
-                <div class="team home">
-                  {% if fixture.home_team.logo %}
-                  <img src="{{ fixture.home_team.logo }}" alt="{{ fixture.home_team.name }}" class="team-logo">
-                  {% else %}
-                  <div class="team-logo-placeholder"></div>
-                  {% endif %}
-                  <span class="team-name">{{ fixture.home_team.name }}</span>
-                </div>
-
-                <span class="vs-divider">VS</span>
-
-                <div class="team away">
-                  {% if fixture.away_team.logo %}
-                  <img src="{{ fixture.away_team.logo }}" alt="{{ fixture.away_team.name }}" class="team-logo">
-                  {% else %}
-                  <div class="team-logo-placeholder"></div>
-                  {% endif %}
-                  <span class="team-name">{{ fixture.away_team.name }}</span>
-                </div>
-              </div>
-
-              <div class="match-footer">
-                <div class="view-count">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                  <span class="view-number">{% widthratio fixture.id 1 47 %}.{{ fixture.id|add:3|divisibleby:7|yesno:"2,8" }}k</span>
-                  <span class="view-label">watching</span>
-                </div>
-
-                <button class="stats-btn-prominent">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                  FULL STATS
-                </button>
-              </div>
-            </article>
-            {% endfor %}
-          </div>
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="matches-placeholder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 48px; height: 48px; color: var(--border-2); margin: 0 auto 16px;">
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-          <p>No fixtures available for this date.</p>
-        </div>
-      {% endif %}
-    </div>
-  </main>
-
+<!-- MATCHES HEADER -->
+<div class="matches-header">
+  <h2>MATCHES</h2>
+  <span class="date-caption" id="date-caption"></span>
+  {% if display_mode == 'priority_leagues' %}
+  <span class="display-mode-badge">TOP LEAGUES</span>
+  {% elif display_mode == 'alphabetical_fallback' %}
+  <span class="display-mode-badge">ALL LEAGUES</span>
+  {% endif %}
 </div>
 
-
-<!-- overlay -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
+<!-- MATCHES AREA -->
+<div class="matches-area" id="matches-area">
+  {% include "football/partials/match_list.html" %}
+</div>
 
 <script>
-  // ── HANDLE DATE PILL CLICKS ──────────────────────────────
-  document.querySelectorAll('.date-pill').forEach(pill => {
-    pill.addEventListener('click', function() {
-      // Remove active from all pills
-      document.querySelectorAll('.date-pill').forEach(p => {
-        p.classList.remove('active');
-        p.setAttribute('aria-pressed', 'false');
-      });
-      
-      // Set this pill as active
-      this.classList.add('active');
-      this.setAttribute('aria-pressed', 'true');
-      
-      // Update date caption immediately
-      const caption = document.getElementById('date-caption');
-      if (caption) {
-        caption.textContent = this.getAttribute('data-label');
-      }
-    });
-  });
+(function () {
 
-  // ── HTMX AFTER SWAP ──────────────────────────────────────
-  document.body.addEventListener('htmx:afterSwap', function(event) {
-    if (event.detail.target.id === 'content-container') {
-      initializePage();
-    }
-  });
+  function showSkeleton() {
+    const area = document.getElementById('matches-area');
+    if (!area) return;
+    const card = () => `
+      <div class="skeleton-card">
+        <div class="skeleton-row">
+          <div class="skeleton-circle" style="width:32px;height:32px;"></div>
+          <div class="skeleton-pulse" style="flex:1;height:13px;"></div>
+        </div>
+        <div class="skeleton-pulse" style="height:13px;width:40%;margin:0 auto;"></div>
+        <div class="skeleton-row" style="flex-direction:row-reverse;">
+          <div class="skeleton-circle" style="width:32px;height:32px;"></div>
+          <div class="skeleton-pulse" style="flex:1;height:13px;"></div>
+        </div>
+      </div>`;
+    area.innerHTML = `
+      <div class="skeleton-section">
+        <div class="skeleton-league-header">
+          <div class="skeleton-circle" style="width:24px;height:24px;"></div>
+          <div class="skeleton-pulse" style="width:160px;height:14px;"></div>
+        </div>
+        <div class="skeleton-cards">${card()}${card()}${card()}</div>
+      </div>
+      <div class="skeleton-section">
+        <div class="skeleton-league-header">
+          <div class="skeleton-circle" style="width:24px;height:24px;"></div>
+          <div class="skeleton-pulse" style="width:120px;height:14px;"></div>
+        </div>
+        <div class="skeleton-cards">${card()}${card()}</div>
+      </div>`;
+  }
 
-  // ── INITIALIZE PAGE ──────────────────────────────────────
-  function initializePage() {
-    // Set date caption
-    const activePill = document.querySelector('.date-pill.active');
-    const caption = document.getElementById('date-caption');
-    if (activePill && caption) {
-      caption.textContent = activePill.getAttribute('data-label');
-    }
-
-    // Country accordion
-    document.querySelectorAll('.country-head').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const block = this.closest('.country-block');
-        const isOpen = block.classList.contains('open');
-        
-        block.classList.toggle('open');
-        this.setAttribute('aria-expanded', !isOpen);
-      });
-    });
-
-    // League filter
-    document.querySelectorAll('.league-item').forEach(item => {
-      item.addEventListener('click', function() {
-        document.querySelectorAll('.league-item').forEach(i => 
-          i.classList.remove('active')
-        );
-        this.classList.add('active');
-
-        const leagueId = this.dataset.leagueId;
-        const selectedDate = document.querySelector('.date-pill.active')?.dataset.date;
-        
-        if (leagueId && selectedDate) {
-          htmx.ajax('GET', 
-            `{% url 'matches' %}?date=${selectedDate}&league=${leagueId}`, 
-            '#matches-area'
-          );
-        }
-      });
-    });
-
-    // Mobile sidebar
-    const sidebar = document.getElementById('sidebar');
-    const toggle = document.getElementById('sidebarToggle');
-    const overlay = document.getElementById('sidebarOverlay');
-
-    function openSidebar() {
-      sidebar?.classList.add('open');
-      overlay?.classList.add('visible');
-      document.body.style.overflow = 'hidden';
-    }
-
-    function closeSidebar() {
-      sidebar?.classList.remove('open');
-      overlay?.classList.remove('visible');
-      document.body.style.overflow = '';
-    }
-
-    toggle?.addEventListener('click', function() {
-      if (sidebar?.classList.contains('open')) {
-        closeSidebar();
-      } else {
-        openSidebar();
-      }
-    });
-
-    overlay?.addEventListener('click', closeSidebar);
-
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && sidebar?.classList.contains('open')) {
-        closeSidebar();
-      }
+  function loadMatches(date, leagueId) {
+    window.startLoading?.();
+    showSkeleton();
+    let url = `/?date=${date}`;
+    if (leagueId) url += `&league=${leagueId}`;
+    htmx.ajax('GET', url, {
+      target: '#matches-area',
+      swap: 'innerHTML'
     });
   }
 
-  // Initialize on page load
-  initializePage();
+  function updateCaption() {
+    const pill    = document.querySelector('.date-pill.active');
+    const caption = document.getElementById('date-caption');
+    if (pill && caption) caption.textContent = pill.dataset.label;
+  }
+
+  document.querySelectorAll('.date-pill').forEach(pill => {
+    pill.addEventListener('click', function () {
+      document.querySelectorAll('.date-pill').forEach(p => p.classList.remove('active'));
+      this.classList.add('active');
+      updateCaption();
+      loadMatches(this.dataset.date, null);
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+
+    const countryHead = e.target.closest('.country-head');
+    if (countryHead) {
+      const block  = countryHead.closest('.country-block');
+      const isOpen = block.classList.contains('open');
+      block.classList.toggle('open', !isOpen);
+      countryHead.setAttribute('aria-expanded', String(!isOpen));
+      return;
+    }
+
+    const leagueItem = e.target.closest('.league-item');
+    if (leagueItem) {
+      document.querySelectorAll('.league-item').forEach(i => i.classList.remove('active'));
+      leagueItem.classList.add('active');
+      const date = document.querySelector('.date-pill.active')?.dataset.date;
+      if (date) loadMatches(date, leagueItem.dataset.leagueId);
+      window.closeSidebar?.();
+      return;
+    }
+
+    if (e.target.closest('#drawerClose')) {
+      window.closeSidebar?.();
+      return;
+    }
+
+  });
+
+  document.addEventListener('htmx:afterSwap', function (e) {
+    if (e.detail.target.id === 'matches-area') {
+      window.stopLoading?.();
+      updateCaption();
+    }
+  });
+
+  document.addEventListener('htmx:responseError', function () {
+    window.stopLoading?.();
+    const area = document.getElementById('matches-area');
+    if (area) area.innerHTML = `
+      <div class="matches-placeholder">
+        <p>Failed to load fixtures. Please try again.</p>
+      </div>`;
+  });
+
+  updateCaption();
+
+})();
 </script>
 
 {% endblock %}

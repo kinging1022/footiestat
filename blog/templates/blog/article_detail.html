@@ -1,0 +1,527 @@
+<!-- blog/templates/blog/article_detail.html -->
+{% extends "football/base.html" %}
+
+{% block content %}
+<style>
+  /* ═══════════════════════════════════════════════════════
+     ARTICLE DETAIL PAGE
+  ═══════════════════════════════════════════════════════ */
+  
+  .article-wrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  /* ── BREADCRUMB ─────────────────────────────────────── */
+  .breadcrumb {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .breadcrumb a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--green);
+  }
+
+  /* ── ARTICLE HEADER ─────────────────────────────────── */
+  .article-header {
+    max-width: 800px;
+    margin: 0 auto 40px;
+    text-align: center;
+  }
+
+  .article-type-badge {
+    display: inline-block;
+    font-family: var(--font-head);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    padding: 6px 14px;
+    border-radius: 3px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  .badge-match_preview { background: rgba(59,130,246,0.12); color: #3b82f6; }
+  .badge-match_report { background: rgba(26,71,49,0.12); color: var(--green); }
+  .badge-analysis { background: rgba(139,92,246,0.12); color: #8b5cf6; }
+  .badge-news { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .badge-interview { background: rgba(217,119,6,0.12); color: #d97706; }
+  .badge-opinion { background: rgba(236,72,153,0.12); color: #ec4899; }
+  .badge-feature { background: rgba(20,184,166,0.12); color: #14b8a6; }
+
+  .article-title {
+    font-family: var(--font-head);
+    font-size: 48px;
+    letter-spacing: 0.02em;
+    line-height: 1.15;
+    color: var(--text);
+    margin: 0 0 20px 0;
+  }
+
+  .article-excerpt {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .article-meta {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .article-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .article-author-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* ── ARTICLE CONTENT GRID ───────────────────────────── */
+  .article-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 40px;
+    margin-top: 40px;
+  }
+
+  .article-main {
+    max-width: 800px;
+  }
+
+  /* ── IMAGE LAYOUTS ──────────────────────────────────── */
+  
+  /* Single image layout */
+  .article-image-single {
+    width: 100%;
+    border-radius: 6px;
+    margin-bottom: 32px;
+  }
+
+  .article-image-single img {
+    width: 100%;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  /* Two images layout - side by side */
+  .article-images-double {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .article-images-double img {
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+
+  /* ── ARTICLE BODY TEXT ──────────────────────────────── */
+  .article-body {
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--text);
+  }
+
+  .article-body p {
+    margin-bottom: 20px;
+  }
+
+  .article-body h2 {
+    font-family: var(--font-head);
+    font-size: 28px;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    margin: 40px 0 16px 0;
+  }
+
+  .article-body h3 {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    margin: 32px 0 12px 0;
+  }
+
+  .article-body a {
+    color: var(--green);
+    text-decoration: underline;
+  }
+
+  .article-body ul,
+  .article-body ol {
+    margin-bottom: 20px;
+    padding-left: 24px;
+  }
+
+  .article-body li {
+    margin-bottom: 8px;
+  }
+
+  .article-body blockquote {
+    border-left: 4px solid var(--green);
+    padding-left: 20px;
+    margin: 24px 0;
+    font-style: italic;
+    color: var(--text-muted);
+  }
+
+  /* ── SIDEBAR ────────────────────────────────────────── */
+  .article-sidebar {
+    position: sticky;
+    top: 24px;
+    height: fit-content;
+  }
+
+  /* AdSense zones */
+  .ad-zone {
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 24px;
+    text-align: center;
+    min-height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* Related articles */
+  .sidebar-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .sidebar-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    color: var(--green);
+    margin: 0 0 16px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .related-article {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+  }
+
+  .related-article:last-child {
+    border-bottom: none;
+  }
+
+  .related-article:hover {
+    background: rgba(26,71,49,0.04);
+    margin: 0 -12px;
+    padding: 12px;
+    border-radius: 4px;
+  }
+
+  .related-article-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .related-article-content h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 4px 0;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .related-article-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* ── TAGS ───────────────────────────────────────────── */
+  .article-tags {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tag-item {
+    font-size: 11px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 16px;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .tag-item:hover {
+    background: var(--green);
+    color: white;
+    border-color: var(--green);
+  }
+
+  /* ── ADMIN ACTIONS ──────────────────────────────────── */
+  .admin-actions {
+    background: rgba(59,130,246,0.08);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+  }
+
+  .admin-btn {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .admin-btn-edit {
+    background: #3b82f6;
+    color: white;
+    border: 1px solid #3b82f6;
+  }
+
+  .admin-btn-edit:hover {
+    background: #2563eb;
+  }
+
+  /* ── RESPONSIVE ─────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .article-content-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .article-sidebar {
+      position: static;
+    }
+
+    .ad-zone {
+      max-width: 600px;
+      margin: 0 auto 24px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .article-title {
+      font-size: 32px;
+    }
+
+    .article-excerpt {
+      font-size: 15px;
+    }
+
+    .article-images-double {
+      grid-template-columns: 1fr;
+    }
+
+    .article-images-double img {
+      height: 200px;
+    }
+
+    .article-body {
+      font-size: 15px;
+    }
+
+    .article-body h2 {
+      font-size: 22px;
+    }
+
+    .article-body h3 {
+      font-size: 18px;
+    }
+  }
+</style>
+
+<div class="article-wrapper">
+
+  <!-- BREADCRUMB -->
+  <div class="breadcrumb">
+    <a href="{% url 'blog:home' %}">Blog</a>
+    <span>›</span>
+    <span>{{ article.get_article_type_display }}</span>
+  </div>
+
+  <!-- ADMIN ACTIONS (staff only) -->
+  {% if user.is_staff %}
+  <div class="admin-actions">
+    <a href="{% url 'blog:edit_article' article.slug %}" class="admin-btn admin-btn-edit">
+      EDIT ARTICLE
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- ARTICLE HEADER -->
+  <header class="article-header">
+    <span class="article-type-badge badge-{{ article.article_type }}">
+      {{ article.get_article_type_display }}
+    </span>
+    <h1 class="article-title">{{ article.title }}</h1>
+    <p class="article-excerpt">{{ article.excerpt }}</p>
+    <div class="article-meta">
+      <div class="article-meta-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span class="article-author-name">
+          {{ article.author.get_full_name|default:article.author.username }}
+        </span>
+      </div>
+      <div class="article-meta-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {{ article.published_date|date:"F d, Y" }}
+      </div>
+      <div class="article-meta-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        {{ article.read_time }} min read
+      </div>
+      <div class="article-meta-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        {{ article.view_count }} views
+      </div>
+    </div>
+  </header>
+
+  <!-- ARTICLE CONTENT WITH SIDEBAR -->
+  <div class="article-content-grid">
+    
+    <main class="article-main">
+      
+      <!-- IMAGES -->
+      {% if article.has_multiple_images %}
+        <!-- Two images side by side -->
+        <div class="article-images-double">
+          <img src="{{ article.image_1 }}" alt="{{ article.title }}">
+          <img src="{{ article.image_2 }}" alt="{{ article.title }}">
+        </div>
+      {% elif article.image_1 %}
+        <!-- Single image -->
+        <div class="article-image-single">
+          <img src="{{ article.image_1 }}" alt="{{ article.title }}">
+        </div>
+      {% endif %}
+
+      <!-- ARTICLE BODY -->
+      <div class="article-body">
+        {{ article.content|safe }}
+      </div>
+
+      <!-- TAGS -->
+      {% if article.tags %}
+      <div class="article-tags">
+        <div class="tags-list">
+          {% for tag in article.tags %}
+          <a href="{% url 'blog:home' %}?tag={{ tag }}" class="tag-item">{{ tag }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </main>
+
+    <!-- SIDEBAR -->
+    <aside class="article-sidebar">
+      
+      <!-- AD ZONE 1 -->
+      <div class="ad-zone">
+        <!-- AdSense code here -->
+        <div>Advertisement</div>
+      </div>
+
+      <!-- RELATED ARTICLES -->
+      {% if related_articles %}
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">RELATED ARTICLES</h3>
+        {% for related in related_articles %}
+        <a href="{% url 'blog:article_detail' related.slug %}" class="related-article">
+          {% if related.image_1 %}
+          <img src="{{ related.image_1 }}" alt="{{ related.title }}" class="related-article-image">
+          {% endif %}
+          <div class="related-article-content">
+            <h4>{{ related.title }}</h4>
+            <div class="related-article-meta">
+              {{ related.published_date|date:"M d, Y" }} · {{ related.read_time }} min
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- AD ZONE 2 -->
+      <div class="ad-zone">
+        <!-- AdSense code here -->
+        <div>Advertisement</div>
+      </div>
+
+    </aside>
+
+  </div>
+
+</div>
+
+{% endblock %}

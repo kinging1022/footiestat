@@ -1,0 +1,1160 @@
+{% extends "football/base.html" %}
+
+{% block content %}
+
+<style>
+  .stats-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .match-header-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  }
+  .match-header-top {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .league-badge { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
+  .league-info  { flex: 1; min-width: 0; }
+  .league-info-country {
+    font-size: 11px; color: var(--text-muted);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  .league-info-name {
+    font-size: 14px; font-weight: 500; color: var(--text); margin-top: 2px;
+  }
+  .match-date {
+    font-size: 12px; color: var(--text-muted);
+    font-family: var(--font-body); flex-shrink: 0;
+  }
+
+  .match-teams-display {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 16px; align-items: center;
+  }
+
+  .team-display {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px; min-width: 0;
+  }
+
+  .team-crest { width: 56px; height: 56px; object-fit: contain; flex-shrink: 0; }
+
+  .team-display-name {
+    font-size: 15px; font-weight: 500; color: var(--text);
+    text-align: center; line-height: 1.3; word-break: break-word; width: 100%;
+  }
+
+  /* ── TEAM STANDING STRIP ─────────────────────────────────── */
+  .team-standing-strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    width: 100%;
+  }
+
+  .standing-rank {
+    font-family: var(--font-head);
+    font-size: 18px;
+    line-height: 1;
+    color: var(--green);
+    flex-shrink: 0;
+  }
+
+  .standing-rank-suffix {
+    font-family: var(--font-head);
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-left: -6px;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  .standing-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .standing-record {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .standing-pts {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: var(--font-body);
+    white-space: nowrap;
+  }
+
+  .standing-wdl {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    white-space: nowrap;
+    letter-spacing: .02em;
+  }
+
+  .standing-form {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .standing-form-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .standing-form-dot.W { background: var(--green); }
+  .standing-form-dot.D { background: #64748b; }
+  .standing-form-dot.L { background: var(--red); }
+
+  /* no standing fallback */
+  .no-standing {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 6px 0;
+    letter-spacing: .04em;
+  }
+
+  .vs-display {
+    font-family: var(--font-head); font-size: 18px;
+    letter-spacing: .14em; color: var(--text-muted); flex-shrink: 0;
+  }
+
+  .match-details-row {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    justify-content: center; padding-top: 12px;
+    margin-top: 12px; border-top: 1px solid var(--border);
+  }
+  .match-detail-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .match-detail-item svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .match-detail-value { color: var(--text); font-weight: 500; }
+
+  /* ── SECTION ─────────────────────────────────────────────── */
+  .stats-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, rgba(26,71,49,.08) 0%, rgba(26,71,49,.04) 100%);
+    border-bottom: 2px solid var(--green);
+  }
+  .section-title {
+    font-family: var(--font-head); font-size: 16px;
+    letter-spacing: .12em; color: var(--green); margin: 0;
+  }
+  .section-subtitle {
+    font-size: 11px; color: var(--text-muted);
+    letter-spacing: .06em; margin-top: 4px;
+  }
+  .section-body { padding: 24px; }
+
+  /* ── LEAGUE TABLE ────────────────────────────────────────── */
+  .table-toggle-btn {
+    width: 100%; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 12px 16px; font-family: var(--font-head);
+    font-size: 12px; letter-spacing: 0.1em; color: var(--text);
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .table-toggle-btn:hover {
+    background: var(--surface); border-color: var(--green); color: var(--green);
+  }
+  .table-toggle-btn svg { width: 14px; height: 14px; transition: transform 0.2s; }
+  .table-toggle-btn.active svg { transform: rotate(180deg); }
+
+  .league-table-wrapper {
+    max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out;
+  }
+  .league-table-wrapper.show { max-height: 1000px; margin-top: 16px; }
+
+  .league-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .league-table thead { background: var(--bg); border-bottom: 2px solid var(--border); }
+  .league-table th {
+    padding: 10px 8px; text-align: left;
+    font-family: var(--font-head); font-size: 10px;
+    letter-spacing: 0.08em; color: var(--text-muted);
+    text-transform: uppercase; font-weight: 500;
+  }
+  .league-table th.text-center { text-align: center; }
+  .league-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .league-table tbody tr:hover { background: rgba(26,71,49,.04); }
+  .league-table tbody tr.highlight { background: rgba(26,71,49,.08); font-weight: 600; }
+  .league-table td { padding: 10px 8px; color: var(--text); }
+  .league-table td.text-center { text-align: center; }
+  .table-rank { font-weight: 700; color: var(--green); }
+  .table-team { display: flex; align-items: center; gap: 8px; }
+  .table-team-logo { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
+  .table-team-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-stat { font-family: var(--font-body); }
+
+  /* ── H2H SUMMARY ─────────────────────────────────────────── */
+  .h2h-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; margin-bottom: 24px;
+  }
+  .h2h-stat {
+    text-align: center; padding: 16px 8px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  }
+  .h2h-stat-value { font-size: 32px; font-weight: 500; color: var(--text); font-family: var(--font-body); line-height: 1; }
+  .h2h-stat-value.home { color: var(--green); }
+  .h2h-stat-value.away { color: #d97706; }
+  .h2h-stat-label {
+    font-size: 11px; color: var(--text-muted); letter-spacing: .06em;
+    text-transform: uppercase; margin-top: 8px; line-height: 1.3;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .h2h-matches { display: flex; flex-direction: column; gap: 8px; }
+
+  .h2h-match-link {
+    display: block; text-decoration: none;
+    border-radius: 4px; transition: transform .16s;
+  }
+  .h2h-match-link:hover { transform: translateY(-1px); }
+  .h2h-match-link:hover .h2h-match { border-color: var(--green); }
+
+  .h2h-match {
+    display: grid; grid-template-columns: 1fr auto 1fr auto;
+    gap: 12px; align-items: center; padding: 12px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; transition: border-color .16s;
+    position: relative;
+  }
+  .h2h-team-name { font-size: 12px; color: var(--text); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .h2h-team-name.home { text-align: right; }
+  .h2h-team-name.away { text-align: left; }
+  .h2h-score {
+    font-size: 14px; font-weight: 500; font-family: var(--font-body);
+    color: var(--text); padding: 4px 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 3px; white-space: nowrap; flex-shrink: 0;
+  }
+  .h2h-meta { font-size: 10px; color: var(--text-muted); text-align: right; line-height: 1.5; white-space: nowrap; flex-shrink: 0; }
+
+  .h2h-match-link .h2h-match::after {
+    content: '→'; font-size: 11px; color: var(--text-muted);
+    position: absolute; right: 12px; opacity: 0; transition: opacity .16s;
+  }
+  .h2h-match-link:hover .h2h-match::after { opacity: 1; }
+
+  .h2h-insights {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-top: 24px; padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .insight-card {
+    padding: 14px 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; display: flex; flex-direction: column;
+    align-items: center; gap: 6px; text-align: center;
+  }
+  .insight-label { font-size: 10px; color: var(--text-muted); letter-spacing: .06em; text-transform: uppercase; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+  .insight-value { font-size: 22px; font-weight: 500; font-family: var(--font-body); color: var(--green); line-height: 1; }
+  .insight-value.home { color: var(--green); }
+  .insight-value.away { color: #d97706; }
+
+  /* ── SIDE BY SIDE PANELS ─────────────────────────────────── */
+  .last5-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .last5-col:first-child { border-right: 1px solid var(--border); }
+
+  .last5-col-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg);
+  }
+  .last5-col-head img { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+  .last5-col-head-name { font-size: 12px; font-weight: 600; color: var(--text); letter-spacing: .03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .last5-col-head-tag { font-family: var(--font-head); font-size: 9px; letter-spacing: .1em; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
+
+  .form-dots { display: flex; gap: 3px; padding: 7px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .form-dot { height: 4px; flex: 1; border-radius: 3px; }
+  .form-dot.W { background: var(--green); }
+  .form-dot.D { background: #64748b; }
+  .form-dot.L { background: var(--red); }
+
+  .last5-row-link {
+    display: block; text-decoration: none; transition: background .14s;
+  }
+  .last5-row-link:hover .last5-row {
+    background: rgba(26,71,49,.06);
+    border-left: 2px solid var(--green);
+    padding-left: 10px;
+  }
+
+  .last5-row {
+    display: grid; grid-template-columns: 22px 22px 1fr auto;
+    gap: 7px; align-items: center; padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    transition: background .14s, border-left .14s, padding-left .14s;
+    border-left: 2px solid transparent;
+  }
+  .last5-row:last-child { border-bottom: none; }
+
+  .result-badge {
+    width: 22px; height: 22px; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-head); font-size: 10px; font-weight: 700;
+    letter-spacing: .02em; flex-shrink: 0;
+  }
+  .result-badge.W { background: var(--green); color: #fff; }
+  .result-badge.D { background: #64748b; color: #fff; }
+  .result-badge.L { background: var(--red); color: #fff; }
+
+  .venue-tag {
+    font-size: 9px; letter-spacing: .08em; color: var(--text-muted);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 2px 4px; border-radius: 2px; flex-shrink: 0;
+    font-family: var(--font-head); text-align: center; width: 22px;
+  }
+
+  .last5-opponent { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+  .score-chip {
+    font-size: 12px; font-weight: 700; font-family: var(--font-body);
+    white-space: nowrap; flex-shrink: 0;
+    padding: 3px 8px; border-radius: 3px; border: 1px solid;
+  }
+  .score-chip.W { color: var(--green); border-color: rgba(26,71,49,.3); background: rgba(26,71,49,.07); }
+  .score-chip.D { color: #64748b; border-color: rgba(100,116,139,.3); background: rgba(100,116,139,.07); }
+  .score-chip.L { color: var(--red); border-color: rgba(220,38,38,.25); background: rgba(220,38,38,.06); }
+
+  .last5-stats-row {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: var(--border); border-top: 1px solid var(--border);
+  }
+  .last5-stat-cell {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px; background: var(--bg); gap: 3px; text-align: center;
+  }
+  .last5-stat-val { font-size: 18px; font-weight: 600; font-family: var(--font-body); color: var(--text); line-height: 1; }
+  .last5-stat-val.green { color: var(--green); }
+  .last5-stat-val.amber { color: #d97706; }
+  .last5-stat-val.red   { color: var(--red); }
+  .last5-stat-lbl { font-size: 9px; color: var(--text-muted); letter-spacing: .06em; text-transform: uppercase; }
+
+  .no-data { padding: 24px; text-align: center; color: var(--text-muted); font-size: 12px; border-bottom: 1px solid var(--border); }
+
+  .col-insight { border-top: 2px solid var(--border); }
+  .col-insight-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--border); gap: 8px; }
+  .col-insight-row:last-child { border-bottom: none; }
+  .col-insight-lbl { font-size: 10px; color: var(--text-muted); letter-spacing: .05em; text-transform: uppercase; line-height: 1.3; }
+  .col-insight-val { font-size: 14px; font-weight: 700; font-family: var(--font-body); white-space: nowrap; flex-shrink: 0; }
+  .col-insight-val.green  { color: var(--green); }
+  .col-insight-val.amber  { color: #d97706; }
+  .col-insight-val.red    { color: var(--red); }
+  .col-insight-val.muted  { color: var(--text-muted); }
+
+  .pill { font-family: var(--font-head); font-size: 9px; letter-spacing: .1em; padding: 3px 8px; border-radius: 3px; flex-shrink: 0; }
+  .pill.Strong   { background: rgba(26,71,49,.14);  color: var(--green); }
+  .pill.Moderate,
+  .pill.Fair     { background: rgba(217,119,6,.14); color: #d97706; }
+  .pill.Weak,
+  .pill.Poor     { background: rgba(220,38,38,.12); color: var(--red); }
+
+  /* ════════════════════════════════════════════════════════════
+     RESPONSIVE
+  ════════════════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+    .stats-container { padding: 12px; }
+    .match-header-card { padding: 14px; }
+    .league-badge { width: 24px; height: 24px; }
+    .league-info-country { font-size: 10px; }
+    .league-info-name { font-size: 12px; }
+    .match-date { font-size: 11px; }
+    .team-crest { width: 40px; height: 40px; }
+    .team-display-name { font-size: 13px; }
+    .vs-display { font-size: 14px; }
+    .standing-rank { font-size: 15px; }
+    .standing-pts { font-size: 11px; }
+    .standing-wdl { font-size: 9px; }
+    .team-standing-strip { padding: 5px 8px; gap: 7px; }
+    .match-details-row { gap: 8px; }
+    .match-detail-item { font-size: 10px; }
+    .league-table { font-size: 11px; }
+    .league-table th, .league-table td { padding: 8px 6px; }
+    .table-team-logo { width: 16px; height: 16px; }
+    .h2h-summary { gap: 8px; margin-bottom: 16px; }
+    .h2h-stat { padding: 10px 6px; }
+    .h2h-stat-value { font-size: 22px; }
+    .h2h-stat-label { font-size: 9px; margin-top: 6px; }
+    .h2h-match { grid-template-columns: 1fr auto 1fr auto; gap: 6px; padding: 8px; }
+    .h2h-team-name { font-size: 11px; }
+    .h2h-score { font-size: 12px; padding: 3px 8px; }
+    .h2h-meta { font-size: 9px; }
+    .h2h-insights { grid-template-columns: repeat(2,1fr); gap: 8px; margin-top: 16px; padding-top: 16px; }
+    .insight-card { padding: 10px 8px; }
+    .insight-value { font-size: 18px; }
+    .insight-label { font-size: 9px; }
+    .section-body { padding: 14px; }
+    .last5-col-head { padding: 9px 10px; gap: 6px; }
+    .last5-col-head-name { font-size: 11px; }
+    .last5-col-head-tag { font-size: 8px; padding: 2px 5px; }
+    .last5-row { grid-template-columns: 20px 20px 1fr auto; gap: 5px; padding: 7px 10px; }
+    .result-badge { width: 20px; height: 20px; font-size: 9px; }
+    .venue-tag { width: 20px; font-size: 8px; }
+    .last5-opponent { font-size: 11px; }
+    .score-chip { font-size: 11px; padding: 2px 6px; }
+    .last5-stat-val { font-size: 15px; }
+    .last5-stat-lbl { font-size: 8px; }
+    .col-insight-row { padding: 7px 10px; }
+    .col-insight-lbl { font-size: 9px; }
+    .col-insight-val { font-size: 13px; }
+  }
+
+  @media (max-width: 480px) {
+    .team-crest { width: 32px; height: 32px; }
+    .team-display-name { font-size: 11px; }
+    .vs-display { font-size: 12px; }
+    .standing-rank { font-size: 13px; }
+    .standing-divider { display: none; }
+    .standing-record { display: none; }
+    .standing-form-dot { width: 5px; height: 5px; }
+    .team-standing-strip { padding: 4px 8px; gap: 6px; }
+    .h2h-stat-value { font-size: 18px; }
+    .h2h-stat-label { font-size: 8px; }
+    .h2h-match { grid-template-columns: 1fr auto 1fr; }
+    .h2h-meta { grid-column: 1/-1; text-align: center; padding-top: 6px; border-top: 1px solid var(--border); margin-top: 2px; }
+    .h2h-team-name { font-size: 10px; }
+    .h2h-score { font-size: 11px; padding: 2px 6px; }
+    .insight-value { font-size: 16px; }
+    .insight-label { font-size: 8px; }
+    .section-body { padding: 10px; }
+    .last5-col-head-tag { display: none; }
+    .last5-col-head { padding: 8px; gap: 5px; }
+    .last5-col-head-name { font-size: 10px; }
+    .last5-row { grid-template-columns: 18px 18px 1fr auto; gap: 4px; padding: 6px 8px; }
+    .result-badge { width: 18px; height: 18px; font-size: 8px; border-radius: 2px; }
+    .venue-tag { width: 18px; font-size: 7px; padding: 1px 2px; }
+    .last5-opponent { font-size: 10px; }
+    .score-chip { font-size: 10px; padding: 2px 5px; }
+    .last5-stat-val { font-size: 13px; }
+    .last5-stat-lbl { font-size: 7px; }
+    .last5-stat-cell { padding: 8px 3px; }
+    .col-insight-row { padding: 6px 8px; }
+    .col-insight-lbl { font-size: 8px; }
+    .col-insight-val { font-size: 12px; }
+  }
+</style>
+
+<div class="stats-container">
+
+  <!-- MATCH HEADER -->
+  <div class="match-header-card">
+    <div class="match-header-top">
+      {% if fixture.league.logo %}
+      <img src="{{ fixture.league.logo }}" alt="{{ fixture.league.name }}" class="league-badge">
+      {% endif %}
+      <div class="league-info">
+        <div class="league-info-country">{{ fixture.league.country.name }}</div>
+        <div class="league-info-name">{{ fixture.league.name }}</div>
+      </div>
+      <div class="match-date">{{ fixture.date|date:"d M Y, H:i" }}</div>
+    </div>
+
+    <div class="match-teams-display">
+
+      <!-- HOME TEAM -->
+      <div class="team-display">
+        {% if fixture.home_team.logo %}
+        <img src="{{ fixture.home_team.logo }}" alt="{{ fixture.home_team.name }}" class="team-crest">
+        {% endif %}
+        <div class="team-display-name">{{ fixture.home_team.name }}</div>
+        {% if home_standing %}
+        <div class="team-standing-strip">
+          <span class="standing-rank">{{ home_standing.rank }}</span>
+          <span class="standing-rank-suffix">
+            {% if home_standing.rank == 1 %}st
+            {% elif home_standing.rank == 2 %}nd
+            {% elif home_standing.rank == 3 %}rd
+            {% else %}th{% endif %}
+          </span>
+          <div class="standing-divider"></div>
+          <div class="standing-record">
+            <span class="standing-pts">{{ home_standing.points }} pts</span>
+            <span class="standing-wdl">{{ home_standing.wins }}W {{ home_standing.draws }}D {{ home_standing.losses }}L</span>
+          </div>
+          {% if home_standing.last_five %}
+          <div class="standing-form">
+            {% for char in home_standing.last_five %}
+            <div class="standing-form-dot {{ char }}"></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="no-standing">No standing data</div>
+        {% endif %}
+      </div>
+
+      <div class="vs-display">VS</div>
+
+      <!-- AWAY TEAM -->
+      <div class="team-display">
+        {% if fixture.away_team.logo %}
+        <img src="{{ fixture.away_team.logo }}" alt="{{ fixture.away_team.name }}" class="team-crest">
+        {% endif %}
+        <div class="team-display-name">{{ fixture.away_team.name }}</div>
+        {% if away_standing %}
+        <div class="team-standing-strip">
+          <span class="standing-rank">{{ away_standing.rank }}</span>
+          <span class="standing-rank-suffix">
+            {% if away_standing.rank == 1 %}st
+            {% elif away_standing.rank == 2 %}nd
+            {% elif away_standing.rank == 3 %}rd
+            {% else %}th{% endif %}
+          </span>
+          <div class="standing-divider"></div>
+          <div class="standing-record">
+            <span class="standing-pts">{{ away_standing.points }} pts</span>
+            <span class="standing-wdl">{{ away_standing.wins }}W {{ away_standing.draws }}D {{ away_standing.losses }}L</span>
+          </div>
+          {% if away_standing.last_five %}
+          <div class="standing-form">
+            {% for char in away_standing.last_five %}
+            <div class="standing-form-dot {{ char }}"></div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="no-standing">No standing data</div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    {% if fixture.venue or fixture.referee %}
+    <div class="match-details-row">
+      {% if fixture.venue %}
+      <div class="match-detail-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span class="match-detail-value">{{ fixture.venue }}</span>
+      </div>
+      {% endif %}
+      {% if fixture.referee %}
+      <div class="match-detail-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span class="match-detail-value">{{ fixture.referee }}</span>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- LEAGUE TABLE -->
+  {% if full_table %}
+  <div class="stats-section">
+    <div class="section-header">
+      <h2 class="section-title">LEAGUE TABLE</h2>
+      <div class="section-subtitle">{{ fixture.league.name }} - {{ fixture.league.season }} Season</div>
+      <div class="section-subtitle" style="margin-top:4px;font-size:11px;opacity:0.65;">
+        {% if standings_updated_at %}
+          Table updated {{ standings_updated_at|date:"M j, Y" }} at {{ standings_updated_at|date:"H:i" }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="section-body">
+      <button class="table-toggle-btn" onclick="toggleTable(this)">
+        <span class="toggle-text">SHOW FULL TABLE</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+      <div class="league-table-wrapper" id="leagueTableWrapper">
+        <table class="league-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team</th>
+              <th class="text-center">P</th>
+              <th class="text-center">W</th>
+              <th class="text-center">D</th>
+              <th class="text-center">L</th>
+              <th class="text-center">GF</th>
+              <th class="text-center">GA</th>
+              <th class="text-center">GD</th>
+              <th class="text-center">PTS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for standing in full_table %}
+            <tr {% if standing.team.id == fixture.home_team.id or standing.team.id == fixture.away_team.id %}class="highlight"{% endif %}>
+              <td class="table-rank">{{ standing.rank }}</td>
+              <td>
+                <div class="table-team">
+                  {% if standing.team.logo %}
+                  <img src="{{ standing.team.logo }}" alt="" class="table-team-logo">
+                  {% endif %}
+                  <span class="table-team-name">{{ standing.team.name }}</span>
+                </div>
+              </td>
+              <td class="text-center table-stat">{{ standing.matches_played }}</td>
+              <td class="text-center table-stat">{{ standing.wins }}</td>
+              <td class="text-center table-stat">{{ standing.draws }}</td>
+              <td class="text-center table-stat">{{ standing.losses }}</td>
+              <td class="text-center table-stat">{{ standing.goals_for }}</td>
+              <td class="text-center table-stat">{{ standing.goals_against }}</td>
+              <td class="text-center table-stat">{{ standing.goal_difference|stringformat:"+d" }}</td>
+              <td class="text-center table-stat"><strong>{{ standing.points }}</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- HEAD TO HEAD -->
+  {% if h2h_matches %}
+  <div class="stats-section">
+    <div class="section-header">
+      <h2 class="section-title">HEAD TO HEAD</h2>
+      <div class="section-subtitle">Last meetings — click any match for detailed stats</div>
+    </div>
+    <div class="section-body">
+      <div class="h2h-summary">
+        <div class="h2h-stat">
+          <div class="h2h-stat-value home">{{ h2h_summary.home_wins }}</div>
+          <div class="h2h-stat-label">{{ fixture.home_team.name }} Wins</div>
+        </div>
+        <div class="h2h-stat">
+          <div class="h2h-stat-value">{{ h2h_summary.draws }}</div>
+          <div class="h2h-stat-label">Draws</div>
+        </div>
+        <div class="h2h-stat">
+          <div class="h2h-stat-value away">{{ h2h_summary.away_wins }}</div>
+          <div class="h2h-stat-label">{{ fixture.away_team.name }} Wins</div>
+        </div>
+      </div>
+
+      <div class="h2h-matches">
+        {% for match in h2h_matches %}
+        <a href="{% url 'fixture_deep_stats' match.past_fixture_id %}" class="h2h-match-link">
+          <div class="h2h-match">
+            <div class="h2h-team-name home">{{ match.home_name }}</div>
+            <div class="h2h-score">
+              {{ match.home_fulltime_goals|default_if_none:"-" }} – {{ match.away_fulltime_goals|default_if_none:"-" }}
+            </div>
+            <div class="h2h-team-name away">{{ match.away_name }}</div>
+            <div class="h2h-meta">
+              {{ match.date|date:"d M Y" }}<br>
+              <small>{{ match.league_name }}</small>
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+
+      <div class="h2h-insights">
+        <div class="insight-card">
+          <div class="insight-label">Total Goals</div>
+          <div class="insight-value">{{ h2h_summary.home_goals|add:h2h_summary.away_goals }}</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-label">Avg / Match</div>
+          <div class="insight-value">{{ h2h_summary.avg_goals }}</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-label">{{ fixture.home_team.name }} Goals</div>
+          <div class="insight-value home">{{ h2h_summary.home_goals }}</div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-label">{{ fixture.away_team.name }} Goals</div>
+          <div class="insight-value away">{{ h2h_summary.away_goals }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="stats-section">
+    <div class="section-header"><h2 class="section-title">HEAD TO HEAD</h2></div>
+    <div class="section-body">
+      <p style="text-align:center;color:var(--text-muted);padding:32px 16px;">
+        No previous meetings found between these teams.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if advanced_stats %}
+
+  <!-- LAST 5 MATCHES -->
+  <div class="stats-section">
+    <div class="section-header">
+      <h2 class="section-title">LAST 5 MATCHES</h2>
+      <div class="section-subtitle">Overall recent form — any venue · click any row for detailed stats</div>
+    </div>
+    <div class="last5-grid">
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.home_team.logo %}<img src="{{ fixture.home_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.home_team.name }}</span>
+          <span class="last5-col-head-tag">OVERALL</span>
+        </div>
+        <div class="form-dots">
+          {% for r in advanced_stats.home_last_5_form %}<div class="form-dot {{ r.result }}"></div>{% endfor %}
+        </div>
+        {% for r in advanced_stats.home_last_5_form %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">{% if r.is_home %}H{% else %}A{% endif %}</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% empty %}<div class="no-data">No data available</div>{% endfor %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ advanced_stats.home_wins_last_5 }}</div>
+            <div class="last5-stat-lbl">Wins</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ advanced_stats.home_draws_last_5 }}</div>
+            <div class="last5-stat-lbl">Draws</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ advanced_stats.home_losses_last_5 }}</div>
+            <div class="last5-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <div class="last5-stats-row" style="border-top:none;">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ advanced_stats.home_goals_scored_last_5 }}</div>
+            <div class="last5-stat-lbl">Scored</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ advanced_stats.home_goals_conceded_last_5 }}</div>
+            <div class="last5-stat-lbl">Conceded</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val amber">{{ advanced_stats.home_home_wins_last_5 }}</div>
+            <div class="last5-stat-lbl">Home W</div>
+          </div>
+        </div>
+        {% if overall_insights %}
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Win Rate</span>
+            <span class="col-insight-val green">{{ overall_insights.home_win_rate|floatformat:0 }}%</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Avg Goals / Match</span>
+            <span class="col-insight-val amber">{{ overall_insights.home_avg_goals }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.away_team.logo %}<img src="{{ fixture.away_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.away_team.name }}</span>
+          <span class="last5-col-head-tag">OVERALL</span>
+        </div>
+        <div class="form-dots">
+          {% for r in advanced_stats.away_last_5_form %}<div class="form-dot {{ r.result }}"></div>{% endfor %}
+        </div>
+        {% for r in advanced_stats.away_last_5_form %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">{% if r.is_home %}H{% else %}A{% endif %}</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% empty %}<div class="no-data">No data available</div>{% endfor %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ advanced_stats.away_wins_last_5 }}</div>
+            <div class="last5-stat-lbl">Wins</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ advanced_stats.away_draws_last_5 }}</div>
+            <div class="last5-stat-lbl">Draws</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ advanced_stats.away_losses_last_5 }}</div>
+            <div class="last5-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <div class="last5-stats-row" style="border-top:none;">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ advanced_stats.away_goals_scored_last_5 }}</div>
+            <div class="last5-stat-lbl">Scored</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ advanced_stats.away_goals_conceded_last_5 }}</div>
+            <div class="last5-stat-lbl">Conceded</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val amber">{{ advanced_stats.away_away_wins_last_5 }}</div>
+            <div class="last5-stat-lbl">Away W</div>
+          </div>
+        </div>
+        {% if overall_insights %}
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Win Rate</span>
+            <span class="col-insight-val amber">{{ overall_insights.away_win_rate|floatformat:0 }}%</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Avg Goals / Match</span>
+            <span class="col-insight-val amber">{{ overall_insights.away_avg_goals }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+  <!-- HOME & AWAY FORM -->
+  {% if advanced_stats.home_last_5_home_form or advanced_stats.away_last_5_away_form %}
+  <div class="stats-section">
+    <div class="section-header">
+      <h2 class="section-title">HOME &amp; AWAY FORM</h2>
+      <div class="section-subtitle">
+        {{ fixture.home_team.name }} last 5 at home &nbsp;·&nbsp;
+        {{ fixture.away_team.name }} last 5 away · click any row for detailed stats
+      </div>
+    </div>
+    <div class="last5-grid">
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.home_team.logo %}<img src="{{ fixture.home_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.home_team.name }}</span>
+          <span class="last5-col-head-tag">AT HOME</span>
+        </div>
+        <div class="form-dots">
+          {% for r in advanced_stats.home_last_5_home_form %}<div class="form-dot {{ r.result }}"></div>{% endfor %}
+        </div>
+        {% for r in advanced_stats.home_last_5_home_form %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">H</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% empty %}<div class="no-data">No home data available</div>{% endfor %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ advanced_stats.home_home_wins_last_5 }}</div>
+            <div class="last5-stat-lbl">Home W</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ advanced_stats.home_home_draws_last_5 }}</div>
+            <div class="last5-stat-lbl">Home D</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ advanced_stats.home_home_losses_last_5 }}</div>
+            <div class="last5-stat-lbl">Home L</div>
+          </div>
+        </div>
+        {% if home_away_insights %}
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Home Win Rate</span>
+            <span class="col-insight-val green">{{ home_away_insights.home_home_win_rate|floatformat:0 }}%</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Home Advantage</span>
+            <span class="pill {{ home_away_insights.home_advantage }}">{{ home_away_insights.home_advantage }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.away_team.logo %}<img src="{{ fixture.away_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.away_team.name }}</span>
+          <span class="last5-col-head-tag">AWAY</span>
+        </div>
+        <div class="form-dots">
+          {% for r in advanced_stats.away_last_5_away_form %}<div class="form-dot {{ r.result }}"></div>{% endfor %}
+        </div>
+        {% for r in advanced_stats.away_last_5_away_form %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">A</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% empty %}<div class="no-data">No away data available</div>{% endfor %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ advanced_stats.away_away_wins_last_5 }}</div>
+            <div class="last5-stat-lbl">Away W</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ advanced_stats.away_away_draws_last_5 }}</div>
+            <div class="last5-stat-lbl">Away D</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ advanced_stats.away_away_losses_last_5 }}</div>
+            <div class="last5-stat-lbl">Away L</div>
+          </div>
+        </div>
+        {% if home_away_insights %}
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Away Win Rate</span>
+            <span class="col-insight-val amber">{{ home_away_insights.away_away_win_rate|floatformat:0 }}%</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Away Strength</span>
+            <span class="pill {{ home_away_insights.away_strength }}">{{ home_away_insights.away_strength }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+  {% endif %}{# end home & away form guard #}
+
+  {% if is_cup %}
+  <!-- LAST 5 IN THIS CUP COMPETITION -->
+  {% if home_cup_form or away_cup_form %}
+  <div class="stats-section">
+    <div class="section-header">
+      <h2 class="section-title">LAST 5 IN THIS CUP</h2>
+      <div class="section-subtitle">Recent form in {{ fixture.league.name }} · click any row for detailed stats</div>
+    </div>
+    <div class="last5-grid">
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.home_team.logo %}<img src="{{ fixture.home_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.home_team.name }}</span>
+          <span class="last5-col-head-tag">CUP FORM</span>
+        </div>
+        <div class="form-dots">
+          {% for r in home_cup_form %}{% if r.result %}<div class="form-dot {{ r.result }}"></div>{% endif %}{% endfor %}
+        </div>
+        {% for r in home_cup_form %}
+        {% if r.result and r.fixture_id %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">{% if r.is_home %}H{% else %}A{% endif %}</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% endif %}
+        {% empty %}<div class="no-data">No cup data available</div>{% endfor %}
+      </div>
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.away_team.logo %}<img src="{{ fixture.away_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.away_team.name }}</span>
+          <span class="last5-col-head-tag">CUP FORM</span>
+        </div>
+        <div class="form-dots">
+          {% for r in away_cup_form %}{% if r.result %}<div class="form-dot {{ r.result }}"></div>{% endif %}{% endfor %}
+        </div>
+        {% for r in away_cup_form %}
+        {% if r.result and r.fixture_id %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">{% if r.is_home %}H{% else %}A{% endif %}</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% endif %}
+        {% empty %}<div class="no-data">No cup data available</div>{% endfor %}
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- VS SIMILAR RANKED OPPONENTS -->
+  {% if similar_rank_stats.has_data %}
+  <div class="stats-section">
+    <div class="section-header">
+      <h2 class="section-title">VS SIMILAR RANKED OPPONENTS</h2>
+      <div class="section-subtitle">Last 5 matches against teams of similar standing (±3 positions) · click any row for detailed stats</div>
+    </div>
+    <div class="last5-grid">
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.home_team.logo %}<img src="{{ fixture.home_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.home_team.name }}</span>
+          <span class="last5-col-head-tag">SIMILAR</span>
+        </div>
+        <div class="form-dots">
+          {% for r in advanced_stats.home_last_5_vs_similar_rank %}
+          {% if r.result %}<div class="form-dot {{ r.result }}"></div>{% endif %}
+          {% endfor %}
+        </div>
+        {% for r in advanced_stats.home_last_5_vs_similar_rank %}
+        {% if r.result and r.fixture_id %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">{% if r.is_home %}H{% else %}A{% endif %}</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% endif %}
+        {% empty %}<div class="no-data">No data available</div>{% endfor %}
+        {% if similar_rank_stats %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ similar_rank_stats.home_wins }}</div>
+            <div class="last5-stat-lbl">Wins</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ similar_rank_stats.home_draws }}</div>
+            <div class="last5-stat-lbl">Draws</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ similar_rank_stats.home_losses }}</div>
+            <div class="last5-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Record vs Similar</span>
+            <span class="pill {{ similar_rank_stats.home_record }}">{{ similar_rank_stats.home_record }}</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Matches Played</span>
+            <span class="col-insight-val muted">{{ similar_rank_stats.home_total }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="last5-col">
+        <div class="last5-col-head">
+          {% if fixture.away_team.logo %}<img src="{{ fixture.away_team.logo }}" alt="">{% endif %}
+          <span class="last5-col-head-name">{{ fixture.away_team.name }}</span>
+          <span class="last5-col-head-tag">SIMILAR</span>
+        </div>
+        <div class="form-dots">
+          {% for r in advanced_stats.away_last_5_vs_similar_rank %}
+          {% if r.result %}<div class="form-dot {{ r.result }}"></div>{% endif %}
+          {% endfor %}
+        </div>
+        {% for r in advanced_stats.away_last_5_vs_similar_rank %}
+        {% if r.result and r.fixture_id %}
+        <a href="{% url 'fixture_deep_stats' r.fixture_id %}" class="last5-row-link">
+          <div class="last5-row">
+            <div class="result-badge {{ r.result }}">{{ r.result }}</div>
+            <div class="venue-tag">{% if r.is_home %}H{% else %}A{% endif %}</div>
+            <div class="last5-opponent">{{ r.opponent }}</div>
+            <div class="score-chip {{ r.result }}">{{ r.goals_scored }}–{{ r.goals_conceded }}</div>
+          </div>
+        </a>
+        {% endif %}
+        {% empty %}<div class="no-data">No data available</div>{% endfor %}
+        {% if similar_rank_stats %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ similar_rank_stats.away_wins }}</div>
+            <div class="last5-stat-lbl">Wins</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ similar_rank_stats.away_draws }}</div>
+            <div class="last5-stat-lbl">Draws</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ similar_rank_stats.away_losses }}</div>
+            <div class="last5-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Record vs Similar</span>
+            <span class="pill {{ similar_rank_stats.away_record }}">{{ similar_rank_stats.away_record }}</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Matches Played</span>
+            <span class="col-insight-val muted">{{ similar_rank_stats.away_total }}</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+  {% endif %}{# end similar_rank_stats.has_data #}
+  {% endif %}{# end is_cup/else #}
+
+  {% endif %}
+
+</div>
+
+<script>
+function toggleTable(btn) {
+  const wrapper = document.getElementById('leagueTableWrapper');
+  const text    = btn.querySelector('.toggle-text');
+  if (wrapper.classList.contains('show')) {
+    wrapper.classList.remove('show');
+    text.textContent = 'SHOW FULL TABLE';
+    btn.classList.remove('active');
+  } else {
+    wrapper.classList.add('show');
+    text.textContent = 'HIDE TABLE';
+    btn.classList.add('active');
+  }
+}
+</script>
+
+{% endblock %}

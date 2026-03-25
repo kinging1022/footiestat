@@ -1,0 +1,41 @@
+<div id="sidebar-body-inner" hx-swap-oob="true">
+  {% if countries %}
+    {% for country in countries %}
+    <div class="country-block {% if forloop.first %}open{% endif %}">
+      <button class="country-head" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+        <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 4 10 8 6 12"/>
+        </svg>
+        <span class="country-name">{{ country.name }}</span>
+        <span class="country-total">{{ country.total_fixtures }}</span>
+      </button>
+      <div class="leagues-list">
+        {% for league in country.leagues %}
+        <div class="league-item" data-league-id="{{ league.id }}">
+          {% if league.logo %}
+          <img src="{{ league.logo }}" alt="{{ league.name }}" class="league-item-logo">
+          {% else %}
+          <div class="league-item-logo-placeholder"></div>
+          {% endif %}
+          <div class="league-item-info">
+            <div class="league-item-name">
+              {{ league.name }}
+              {% if league.is_priority %}
+              <span class="priority-badge">TOP</span>
+              {% endif %}
+            </div>
+          </div>
+          <span class="league-item-count">{{ league.count }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="drawer-empty">No leagues available for this date.</div>
+  {% endif %}
+</div>
+
+<div id="drawer-match-count" hx-swap-oob="true">{{ total_fixtures }} matches</div>
+
+{% include "football/partials/match_list.html" %}

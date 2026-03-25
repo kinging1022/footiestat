@@ -30,7 +30,10 @@ BASE_API_URL = os.getenv('BASE_API_URL')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
-    'd465-102-216-11-4.ngrok-free.app' 
+    '76dc-105-115-6-68.ngrok-free.app',
+    'localhost',
+    '127.0.0.1'
+    ''
 ]
 API_KEY = os.getenv('API_KEY')
 
@@ -71,9 +74,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sitemaps',
     'django_celery_beat',
     #app
     'football',
+    'blog'
 
 
 

@@ -1,0 +1,401 @@
+{% extends "football/base.html" %}
+
+{% block content %}
+<style>
+  .form-wrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  .form-header {
+    margin-bottom: 32px;
+  }
+
+  .form-title {
+    font-family: var(--font-head);
+    font-size: 32px;
+    letter-spacing: 0.06em;
+    color: var(--green);
+    margin-bottom: 8px;
+  }
+
+  .form-subtitle {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .article-preview-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--green);
+    text-decoration: none;
+    padding: 8px 16px;
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    margin-top: 12px;
+    transition: all 0.2s;
+  }
+
+  .article-preview-link:hover {
+    background: var(--green);
+    color: white;
+  }
+
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 32px;
+  }
+
+  .form-group {
+    margin-bottom: 24px;
+  }
+
+  .form-label {
+    display: block;
+    font-family: var(--font-head);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .form-label.required::after {
+    content: " *";
+    color: #ef4444;
+  }
+
+  .form-input,
+  .form-select,
+  .form-textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: var(--font-body);
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.2s;
+  }
+
+  .form-input:focus,
+  .form-select:focus,
+  .form-textarea:focus {
+    outline: none;
+    border-color: var(--green);
+  }
+
+  .form-help {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .form-checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .form-checkbox {
+    width: 18px;
+    height: 18px;
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    border-radius: 4px;
+    font-family: var(--font-head);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    border: none;
+    display: inline-block;
+  }
+
+  .btn-primary {
+    background: var(--green);
+    color: white;
+    border: 1px solid var(--green);
+  }
+
+  .btn-primary:hover {
+    background: #1a4731;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    background: var(--bg);
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+  }
+
+  .btn-danger:hover {
+    background: #ef4444;
+    color: white;
+  }
+
+  .messages {
+    margin-bottom: 24px;
+  }
+
+  .alert {
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+
+  .alert-success {
+    background: rgba(26,71,49,0.1);
+    border: 1px solid var(--green);
+    color: var(--green);
+  }
+
+  .alert-error {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+  }
+
+  /* Article info box */
+  .article-info {
+    background: rgba(59,130,246,0.08);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+
+  .article-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+
+  .article-info-label {
+    color: var(--text-muted);
+  }
+
+  .article-info-value {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Image preview */
+  .image-preview {
+    margin-top: 12px;
+    display: flex;
+    gap: 12px;
+  }
+
+  .image-preview img {
+    max-width: 200px;
+    height: auto;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .image-preview-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  @media (max-width: 768px) {
+    .form-card {
+      padding: 20px;
+    }
+
+    .form-actions {
+      flex-direction: column;
+    }
+
+    .btn {
+      width: 100%;
+      text-align: center;
+    }
+
+    .image-preview {
+      flex-direction: column;
+    }
+
+    .image-preview img {
+      max-width: 100%;
+    }
+  }
+</style>
+
+<div class="form-wrapper">
+  
+  <div class="form-header">
+    <h1 class="form-title">EDIT ARTICLE</h1>
+    <p class="form-subtitle">Update article details for: <strong>{{ article.title }}</strong></p>
+    <a href="{% url 'blog:article_detail' article.slug %}" class="article-preview-link">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+      VIEW ARTICLE
+    </a>
+  </div>
+
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Article Info -->
+  <div class="article-info">
+    <div class="article-info-row">
+      <span class="article-info-label">Created:</span>
+      <span class="article-info-value">{{ article.created_at|date:"F d, Y H:i" }}</span>
+    </div>
+    <div class="article-info-row">
+      <span class="article-info-label">Last Updated:</span>
+      <span class="article-info-value">{{ article.updated_at|date:"F d, Y H:i" }}</span>
+    </div>
+    <div class="article-info-row">
+      <span class="article-info-label">Total Views:</span>
+      <span class="article-info-value">{{ article.view_count }}</span>
+    </div>
+    <div class="article-info-row">
+      <span class="article-info-label">Article Slug:</span>
+      <span class="article-info-value">{{ article.slug }}</span>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label for="id_title" class="form-label required">TITLE</label>
+        {{ form.title }}
+        {% if form.title.errors %}
+          <div class="form-help" style="color: #ef4444;">{{ form.title.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_article_type" class="form-label required">ARTICLE TYPE</label>
+        {{ form.article_type }}
+      </div>
+
+      <div class="form-group">
+        <label for="id_image_1" class="form-label">PRIMARY IMAGE URL</label>
+        {{ form.image_1 }}
+        <div class="form-help">Enter the full URL of the main article image</div>
+        {% if article.image_1 %}
+        <div class="image-preview">
+          <div>
+            <img src="{{ article.image_1 }}" alt="Current primary image">
+            <div class="image-preview-label">Current Primary Image</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_image_2" class="form-label">SECONDARY IMAGE URL</label>
+        {{ form.image_2 }}
+        <div class="form-help">Optional second image (will display side-by-side)</div>
+        {% if article.image_2 %}
+        <div class="image-preview">
+          <div>
+            <img src="{{ article.image_2 }}" alt="Current secondary image">
+            <div class="image-preview-label">Current Secondary Image</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_excerpt" class="form-label required">EXCERPT</label>
+        {{ form.excerpt }}
+        <div class="form-help">Brief summary (max 300 characters) - {{ form.excerpt.value|length }}/300</div>
+        {% if form.excerpt.errors %}
+          <div class="form-help" style="color: #ef4444;">{{ form.excerpt.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_content" class="form-label required">CONTENT</label>
+        {{ form.content }}
+        <div class="form-help">Full article content (HTML supported)</div>
+        {% if form.content.errors %}
+          <div class="form-help" style="color: #ef4444;">{{ form.content.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_tags_input" class="form-label">TAGS</label>
+        {{ form.tags_input }}
+        <div class="form-help">{{ form.tags_input.help_text }}</div>
+        {% if article.tags %}
+        <div class="form-help">Current tags: {{ article.tags|join:", " }}</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_read_time" class="form-label required">READ TIME (MINUTES)</label>
+        {{ form.read_time }}
+      </div>
+
+      <div class="form-group">
+        <div class="form-checkbox-group">
+          {{ form.is_published }}
+          <label for="id_is_published" class="form-label" style="margin: 0;">PUBLISH ARTICLE</label>
+        </div>
+        <div class="form-help">Uncheck to save as draft</div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-checkbox-group">
+          {{ form.is_featured }}
+          <label for="id_is_featured" class="form-label" style="margin: 0;">FEATURE THIS ARTICLE</label>
+        </div>
+        <div class="form-help">Featured articles appear in the hero section on homepage</div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">SAVE CHANGES</button>
+        <a href="{% url 'blog:article_detail' article.slug %}" class="btn btn-secondary">CANCEL</a>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+
+{% endblock %}

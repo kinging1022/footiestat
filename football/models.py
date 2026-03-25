@@ -1,5 +1,7 @@
 from django.db import models
+from django.shortcuts import render
 from django.utils import timezone
+from django.utils.text import slugify
 
 class Country(models.Model):
     name = models.CharField(max_length=100, verbose_name="Country Name", unique=True)
@@ -19,10 +21,12 @@ class Country(models.Model):
         return f"{self.name} ({self.country_code})"
 
 
-class League(models.Model): 
+
+
+class League(models.Model):
     id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100, verbose_name="League Name")
-    logo = models.URLField(verbose_name="League Logo URL",blank=True,null=True)
+    logo = models.URLField(verbose_name="League Logo URL", blank=True, null=True)
     type = models.CharField(max_length=50, blank=True)
     country = models.ForeignKey(
         Country, 
@@ -30,16 +34,31 @@ class League(models.Model):
         related_name='leagues'
     )
     season = models.IntegerField()
-
+    
+    # ✅ NEW: Priority for homepage display
+    priority = models.PositiveSmallIntegerField(
+        default=999,
+        help_text="Lower number = higher priority. 1-10 for top leagues, 999 for others"
+    )
+    
     class Meta:
         verbose_name = "League"
         verbose_name_plural = "Leagues"
         constraints = [
             models.UniqueConstraint(fields=['name', 'season', 'country'], name='unique_league_season')
         ]
-
+        ordering = ['priority', 'name']  
+    
     def __str__(self):
         return f"{self.country.name} - {self.name} - {self.season} Season"
+    
+    @property
+    def is_priority(self):
+        """Check if this is a priority league"""
+        return self.priority <= 20
+
+
+
 
 
 
@@ -58,6 +77,9 @@ class Team(models.Model):
 
     def __str__(self):
         return f'{self.name}-{self.country.name}'
+
+
+
     
 
 class TeamFormSnapshot(models.Model):
@@ -65,7 +87,7 @@ class TeamFormSnapshot(models.Model):
     league_name = models.CharField(max_length=100, null=True, blank=True)
     league_id = models.PositiveIntegerField(null=True, blank=True)
     season = models.PositiveSmallIntegerField()
-    fixture_id = models.BigIntegerField(unique=True)  
+    fixture_id = models.BigIntegerField()  
     match_date = models.DateTimeField(db_index=True)
     is_home = models.BooleanField()  
     opponent = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="opponent_snapshots")
@@ -79,6 +101,8 @@ class TeamFormSnapshot(models.Model):
     away_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True) 
     result = models.CharField(max_length=5, choices=[('W', 'Win'), ('L', 'Loss'), ('D', 'Draw')],blank=True, null=True)
     round_name = models.CharField(max_length=50, null=True, blank=True) 
+
+    
     
    
     
@@ -90,6 +114,14 @@ class TeamFormSnapshot(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['team', 'fixture_id'], name='unique_team_form_snapshot')
         ]
+
+        ordering = ['team', '-match_date']
+
+    def __str__(self):
+        return self.team.name + " vs " + self.opponent.name + " on " + self.match_date.strftime('%Y-%m-%d') + " (" + self.result + ")"
+
+
+
 
 
 class LeagueTableSnapshot(models.Model):
@@ -205,8 +237,13 @@ class Fixture(models.Model):
             f"{self.date.strftime('%Y-%m-%d %H:%M')} | "
             f"{self.get_status_display()}"
         )
-
-
+    
+    @property
+    def slug(self):
+        home = slugify(self.home_team.name)
+        away = slugify(self.away_team.name)
+        date = self.date.strftime('%Y%m%d')
+        return f"{home}-vs-{away}-{date}"
 
 
 class HeadToHeadMatch(models.Model):
@@ -233,9 +270,9 @@ class HeadToHeadMatch(models.Model):
     class Meta:
         verbose_name = "Head to Head Match"
         verbose_name_plural = "Head to Head Matches"
-        ordering = ['-date']
+        ordering = ['fixture', '-date']
 
-    def _str_(self):
+    def __str__(self):
         return f"{self.home_name} {self.home_fulltime_goals} - {self.away_fulltime_goals} {self.away_name} on {self.date.date()}"
     
 
@@ -249,19 +286,23 @@ class FixtureIngestion(models.Model):
     needs_form = models.BooleanField(default=True)
     needs_standings = models.BooleanField(default=True)
     needs_advanced_stats = models.BooleanField(default=True)
+    needs_detailed_stats = models.BooleanField(default=True)  
+
 
     # Processing timestamps
     h2h_processed_at = models.DateTimeField(null=True, blank=True)
     form_processed_at = models.DateTimeField(null=True, blank=True)
     standings_processed_at = models.DateTimeField(null=True, blank=True)
     advanced_stats_processed_at = models.DateTimeField(null=True, blank=True)
+    detailed_stats_processed_at = models.DateTimeField(null=True, blank=True)  
     
     # Retry tracking
     h2h_retry_count = models.IntegerField(default=0)
     form_retry_count = models.IntegerField(default=0)
     standings_retry_count = models.IntegerField(default=0)
     advanced_stats_retry_count = models.IntegerField(default=0)
-
+    detailed_stats_retry_count = models.IntegerField(default=0)
+    
     # Error tracking
     last_error = models.TextField(null=True, blank=True)
     
@@ -276,6 +317,7 @@ class FixtureIngestion(models.Model):
 
 
     class Meta:
+        ordering = ['fixture__date', 'fixture__id'] 
         indexes = [
             models.Index(fields=['needs_h2h', 'h2h_retry_count']),
             models.Index(fields=['needs_form', 'form_retry_count']),
@@ -289,7 +331,8 @@ class FixtureIngestion(models.Model):
                 self.needs_h2h,
                 self.needs_form,
                 self.needs_standings,
-                self.needs_advanced_stats
+                self.needs_advanced_stats,
+                self.needs_detailed_stats
              ]):
                 self.is_fully_processed = True
                 self.fully_processed_at = timezone.now()
@@ -301,18 +344,18 @@ class FixtureIngestion(models.Model):
     @property
     def processing_percentage(self):
         """Get completion percentage"""
-        total = 4
+        total = 5   
         completed = sum([
             not self.needs_h2h,
             not self.needs_form,
             not self.needs_standings,
-            not self.needs_advanced_stats
+            not self.needs_advanced_stats,
+            not self.needs_detailed_stats
         ])
         return (completed / total) * 100
 
 
 
-# models.py
 
 class FixtureAdvancedStats(models.Model):
    
@@ -396,3 +439,94 @@ class FixtureAdvancedStats(models.Model):
     
     def __str__(self):
         return f"Advanced stats for {self.fixture}"
+    
+
+
+class FixtureStatistics(models.Model):
+    # match_id is the past match — this is the true unique key
+    match_id = models.BigIntegerField(primary_key=True)
+
+    # parent_fixture groups past matches back to the upcoming fixture
+    fixture = models.ForeignKey(
+        'Fixture',
+        on_delete=models.CASCADE,
+        related_name='detailed_stats',
+        db_index=True
+    )
+
+    date = models.DateField(null=True, blank=True)
+
+    home_fulltime_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_fulltime_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_half_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_half_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_extra_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_extra_time_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    # HOME TEAM STATISTICS
+    home_team_id = models.PositiveIntegerField()
+    home_team_name = models.CharField(max_length=100)
+
+    home_shots_on_goal = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_shots_off_goal = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_total_shots = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_blocked_shots = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_shots_insidebox = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_shots_outsidebox = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    home_fouls = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_corner_kicks = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_offsides = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_ball_possession = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    home_yellow_cards = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_red_cards = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    home_goalkeeper_saves = models.PositiveSmallIntegerField(null=True, blank=True)
+    home_total_passes = models.PositiveIntegerField(null=True, blank=True)
+    home_passes_accurate = models.PositiveIntegerField(null=True, blank=True)
+    home_passes_percentage = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    home_expected_goals = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    home_goals_prevented = models.SmallIntegerField(null=True, blank=True)
+
+    # AWAY TEAM STATISTICS
+    away_team_id = models.PositiveIntegerField()
+    away_team_name = models.CharField(max_length=100)
+
+    away_shots_on_goal = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_shots_off_goal = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_total_shots = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_blocked_shots = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_shots_insidebox = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_shots_outsidebox = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    away_fouls = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_corner_kicks = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_offsides = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_ball_possession = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    away_yellow_cards = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_red_cards = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    away_goalkeeper_saves = models.PositiveSmallIntegerField(null=True, blank=True)
+    away_total_passes = models.PositiveIntegerField(null=True, blank=True)
+    away_passes_accurate = models.PositiveIntegerField(null=True, blank=True)
+    away_passes_percentage = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    away_expected_goals = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    away_goals_prevented = models.SmallIntegerField(null=True, blank=True)
+
+    processed_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['fixture']),
+            models.Index(fields=['processed_at']),
+        ]
+
+    def __str__(self):
+        return f"Stats: match {self.match_id} (parent fixture {self.fixture_id})"

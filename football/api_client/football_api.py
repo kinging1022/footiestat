@@ -1,6 +1,6 @@
 import requests
 from django.conf import settings
-from football.utils import get_football_api_limiter
+from football.utils import get_football_api_limiter,  get_football_api_second_limiter
 
 API_BASE_URL = settings.BASE_API_URL
 API_KEY = settings.API_KEY
@@ -20,17 +20,24 @@ class RateLimitExceeded(Exception):
 def _make_request(url, params=None):
     """
     Internal helper to make rate-limited requests.
-    Adds rate limiting to your existing functions with minimal changes.
+    Checks per-second limit first, then per-minute limit.
     """
-    rate_limiter = get_football_api_limiter()
-    
-    # Check rate limit
-    if not rate_limiter.can_make_request():
-        wait_time = rate_limiter.wait_time_until_next_slot()
-        usage = rate_limiter.get_current_usage()
+
+    minute_limiter = get_football_api_limiter()
+    second_limiter = get_football_api_second_limiter()
+
+    # Check per-second limit first — most likely to be hit
+    if not second_limiter.can_make_request():
+        wait_time = second_limiter.wait_time_until_next_slot()
+        usage     = second_limiter.get_current_usage()
         raise RateLimitExceeded(wait_time, usage)
-    
-    # Make the request (your original logic)
+
+    # Check per-minute limit
+    if not minute_limiter.can_make_request():
+        wait_time = minute_limiter.wait_time_until_next_slot()
+        usage     = minute_limiter.get_current_usage()
+        raise RateLimitExceeded(wait_time, usage)
+
     response = requests.get(url, headers=HEADERS, params=params or {})
     response.raise_for_status()
     return response.json()
@@ -80,7 +87,7 @@ def get_fixtures(date=None, team_id=None, season=None, round=None, fixture_id=No
         params['league'] = league
 
     url = API_BASE_URL + '/fixtures'
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
 
 
 def get_country_details(country_name):
@@ -91,7 +98,7 @@ def get_country_details(country_name):
     """
     url = API_BASE_URL + '/countries/'
     params = {'name': country_name}
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
 
 
 def get_league_details(id=None, season=None):
@@ -107,7 +114,7 @@ def get_league_details(id=None, season=None):
         params['id'] = id
     if season:
         params['season'] = season
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
 
 
 def get_team_details(id=None, season=None, country=None):
@@ -128,7 +135,7 @@ def get_team_details(id=None, season=None, country=None):
     if country:
         params['country'] = country
     
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
 
 
 def get_league_table(league_id, season=None):
@@ -142,7 +149,7 @@ def get_league_table(league_id, season=None):
     params = {'league': league_id}
     if season:
         params['season'] = season
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
 
 
 def get_fixture_head_to_head(team_ids, last=None):
@@ -156,7 +163,7 @@ def get_fixture_head_to_head(team_ids, last=None):
     params = {'h2h': team_ids}
     if last:
         params['last'] = last
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
 
 
 def get_fixture_stats(fixture_id):
@@ -167,4 +174,31 @@ def get_fixture_stats(fixture_id):
     """
     url = API_BASE_URL + '/fixtures/statistics'
     params = {'fixture': fixture_id}
-    return _make_request(url, params)  # ← Only change: use _make_request
+    return _make_request(url, params)  
+
+
+
+def get_team_competitions(team_id, season=None):
+    """
+    Fetch competitions a team is participating in from the football API.
+    :param team_id: ID of the team to fetch competitions for.
+    :param season: season to filter the competitions.
+    :return: JSON response containing team competitions.
+    """
+    url = API_BASE_URL + '/leagues'
+    params = {'team': team_id}
+    if season:
+        params['season'] = season
+    return _make_request(url, params)  
+
+
+
+def get_match_stats(fixture_id):
+    """
+    Fetch detailed match statistics for a fixture from the football API.
+    :param fixture_id: ID of the fixture to fetch match statistics for.
+    :return: JSON response containing match statistics.
+    """
+    url = API_BASE_URL + '/fixtures/statistics'
+    params = {'fixture': fixture_id}
+    return _make_request(url, params)

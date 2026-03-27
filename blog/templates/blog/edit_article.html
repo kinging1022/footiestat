@@ -1,4 +1,4 @@
-{% extends "football/base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
 <style>
@@ -296,7 +296,7 @@
   </div>
 
   <div class="form-card">
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
 
       <div class="form-group">
@@ -313,13 +313,13 @@
       </div>
 
       <div class="form-group">
-        <label for="id_image_1" class="form-label">PRIMARY IMAGE URL</label>
+        <label for="id_image_1" class="form-label">PRIMARY IMAGE</label>
         {{ form.image_1 }}
-        <div class="form-help">Enter the full URL of the main article image</div>
+        <div class="form-help">Upload a new image to replace the current one (JPG, PNG, WebP)</div>
         {% if article.image_1 %}
         <div class="image-preview">
           <div>
-            <img src="{{ article.image_1 }}" alt="Current primary image">
+            <img src="{{ article.image_1.url }}" alt="Current primary image">
             <div class="image-preview-label">Current Primary Image</div>
           </div>
         </div>
@@ -327,13 +327,13 @@
       </div>
 
       <div class="form-group">
-        <label for="id_image_2" class="form-label">SECONDARY IMAGE URL</label>
+        <label for="id_image_2" class="form-label">SECONDARY IMAGE</label>
         {{ form.image_2 }}
-        <div class="form-help">Optional second image (will display side-by-side)</div>
+        <div class="form-help">Optional second image — displays side-by-side with the primary</div>
         {% if article.image_2 %}
         <div class="image-preview">
           <div>
-            <img src="{{ article.image_2 }}" alt="Current secondary image">
+            <img src="{{ article.image_2.url }}" alt="Current secondary image">
             <div class="image-preview-label">Current Secondary Image</div>
           </div>
         </div>

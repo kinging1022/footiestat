@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .page-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 16px 80px;
+  }
+
+  .page-hero {
+    text-align: center;
+    margin-bottom: 48px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-eyebrow {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .22em;
+    color: var(--green);
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .page-title {
+    font-family: var(--font-head);
+    font-size: 56px;
+    letter-spacing: .04em;
+    line-height: 1.05;
+    color: var(--text);
+    margin: 0 0 20px;
+  }
+
+  .page-lead {
+    font-size: 16px;
+    line-height: 1.75;
+    color: var(--text-muted);
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  /* two-col layout */
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 48px;
+    align-items: start;
+  }
+
+  /* form */
+  .contact-form { }
+
+  .form-group {
+    margin-bottom: 22px;
+  }
+
+  .form-group label {
+    display: block;
+    font-family: var(--font-head);
+    font-size: 12px;
+    letter-spacing: .14em;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .form-group label span {
+    color: var(--red);
+    margin-left: 2px;
+  }
+
+  .form-control {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 11px 14px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color .18s;
+    -webkit-appearance: none;
+  }
+
+  .form-control:focus { border-color: var(--green); }
+  .form-control.is-error { border-color: var(--red); }
+
+  textarea.form-control {
+    resize: vertical;
+    min-height: 148px;
+    line-height: 1.6;
+  }
+
+  .field-error {
+    font-size: 12px;
+    color: var(--red);
+    margin-top: 5px;
+    display: block;
+  }
+
+  .submit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--green);
+    color: #fff;
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: .14em;
+    padding: 13px 28px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .18s;
+  }
+
+  .submit-btn:hover { background: var(--green-dim); }
+
+  .submit-btn svg { width: 16px; height: 16px; }
+
+  /* alert messages */
+  .alert {
+    padding: 14px 18px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .alert svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .alert-success {
+    background: rgba(26,71,49,.08);
+    border: 1px solid rgba(26,71,49,.25);
+    color: var(--green);
+  }
+
+  .alert-error {
+    background: rgba(217,48,37,.06);
+    border: 1px solid rgba(217,48,37,.2);
+    color: var(--red);
+  }
+
+  /* info sidebar */
+  .contact-info { }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .info-card h3 {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: .1em;
+    color: var(--green);
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+
+  .info-item:last-child { margin-bottom: 0; }
+
+  .info-item svg {
+    width: 16px;
+    height: 16px;
+    color: var(--green);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .info-item-text { }
+
+  .info-item-text strong {
+    display: block;
+    font-size: 12px;
+    font-family: var(--font-head);
+    letter-spacing: .08em;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .info-item-text span {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 768px) {
+    .contact-grid { grid-template-columns: 1fr; }
+    .page-title { font-size: 38px; }
+  }
+</style>
+
+<div class="page-wrapper">
+
+  <div class="page-hero">
+    <span class="page-eyebrow">GET IN TOUCH</span>
+    <h1 class="page-title">Contact Us</h1>
+    <p class="page-lead">
+      Have a question, spotted an error, or want to discuss advertising opportunities?
+      Fill in the form and our team will get back to you within 48 hours.
+    </p>
+  </div>
+
+  {% for message in messages %}
+    {% if message.tags == 'success' %}
+    <div class="alert alert-success">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      {{ message }}
+    </div>
+    {% else %}
+    <div class="alert alert-error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      {{ message }}
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="contact-grid">
+
+    <form class="contact-form" method="post" action="{% url 'pages:contact' %}">
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label for="id_name">Full Name <span>*</span></label>
+        <input
+          type="text"
+          id="id_name"
+          name="name"
+          class="form-control {% if errors.name %}is-error{% endif %}"
+          value="{{ form_data.name|default:'' }}"
+          placeholder="e.g. John Smith"
+          autocomplete="name"
+          required
+        >
+        {% if errors.name %}<span class="field-error">{{ errors.name }}</span>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_email">Email Address <span>*</span></label>
+        <input
+          type="email"
+          id="id_email"
+          name="email"
+          class="form-control {% if errors.email %}is-error{% endif %}"
+          value="{{ form_data.email|default:'' }}"
+          placeholder="e.g. john@example.com"
+          autocomplete="email"
+          required
+        >
+        {% if errors.email %}<span class="field-error">{{ errors.email }}</span>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_subject">Subject <span>*</span></label>
+        <select id="id_subject" name="subject" class="form-control {% if errors.subject %}is-error{% endif %}">
+          <option value="" disabled {% if not form_data.subject %}selected{% endif %}>Select a topic...</option>
+          <option value="General Enquiry" {% if form_data.subject == 'General Enquiry' %}selected{% endif %}>General Enquiry</option>
+          <option value="Data or Stats Error" {% if form_data.subject == 'Data or Stats Error' %}selected{% endif %}>Data or Stats Error</option>
+          <option value="Advertising & Partnerships" {% if form_data.subject == 'Advertising & Partnerships' %}selected{% endif %}>Advertising &amp; Partnerships</option>
+          <option value="Technical Issue" {% if form_data.subject == 'Technical Issue' %}selected{% endif %}>Technical Issue</option>
+          <option value="Content Feedback" {% if form_data.subject == 'Content Feedback' %}selected{% endif %}>Content Feedback</option>
+          <option value="Other" {% if form_data.subject == 'Other' %}selected{% endif %}>Other</option>
+        </select>
+        {% if errors.subject %}<span class="field-error">{{ errors.subject }}</span>{% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="id_message">Message <span>*</span></label>
+        <textarea
+          id="id_message"
+          name="message"
+          class="form-control {% if errors.message %}is-error{% endif %}"
+          placeholder="Please describe your enquiry in as much detail as possible..."
+          required
+        >{{ form_data.message|default:'' }}</textarea>
+        {% if errors.message %}<span class="field-error">{{ errors.message }}</span>{% endif %}
+      </div>
+
+      <button type="submit" class="submit-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        SEND MESSAGE
+      </button>
+    </form>
+
+    <aside class="contact-info">
+
+      <div class="info-card">
+        <h3>RESPONSE TIMES</h3>
+        <div class="info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <div class="info-item-text">
+            <strong>GENERAL ENQUIRIES</strong>
+            <span>Within 48 hours on business days</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          <div class="info-item-text">
+            <strong>TECHNICAL ISSUES</strong>
+            <span>Within 24 hours — please include your browser and OS</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          </svg>
+          <div class="info-item-text">
+            <strong>ADVERTISING</strong>
+            <span>Within 2 business days for partnership enquiries</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3>BEFORE YOU WRITE</h3>
+        <div class="info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div class="info-item-text">
+            <span>For data corrections, please include the match name, date, and the specific statistic in question.</span>
+          </div>
+        </div>
+        <div class="info-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          <div class="info-item-text">
+            <span>For editorial or privacy concerns, please reference the specific article or page URL.</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+</div>
+{% endblock %}

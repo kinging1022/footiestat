@@ -1,5 +1,5 @@
 <!-- blog/templates/blog/blog_home.html -->
-{% extends "football/base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
 <style>
@@ -363,7 +363,7 @@
   {% if featured_article and active_tab == 'all' %}
   <a href="{% url 'blog:article_detail' featured_article.slug %}" class="blog-hero">
     {% if featured_article.image_1 %}
-    <img src="{{ featured_article.image_1 }}" alt="{{ featured_article.title }}" class="blog-hero-image">
+    <img src="{{ featured_article.image_1.url }}" alt="{{ featured_article.title }}" class="blog-hero-image">
     {% endif %}
     <div class="blog-hero-overlay">
       <span class="blog-hero-badge">FEATURED</span>
@@ -386,7 +386,7 @@
     {% for article in page_obj %}
     <a href="{% url 'blog:article_detail' article.slug %}" class="article-card">
       {% if article.image_1 %}
-      <img src="{{ article.image_1 }}" alt="{{ article.title }}" class="article-card-image">
+      <img src="{{ article.image_1.url }}" alt="{{ article.title }}" class="article-card-image">
       {% endif %}
       <div class="article-card-body">
         <span class="article-type-badge badge-{{ article.article_type }}">

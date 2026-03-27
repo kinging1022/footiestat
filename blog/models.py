@@ -23,8 +23,8 @@ class Article(models.Model):
     article_type = models.CharField(max_length=20, choices=ARTICLE_TYPES, default='news')
     
     # Images - support up to 2 images
-    image_1 = models.URLField(blank=True, null=True, help_text="Primary image")
-    image_2 = models.URLField(blank=True, null=True, help_text="Secondary image (optional)")
+    image_1 = models.ImageField(upload_to='articles/', blank=True, null=True, help_text="Primary image")
+    image_2 = models.ImageField(upload_to='articles/', blank=True, null=True, help_text="Secondary image (optional)")
     
     # Content
     excerpt = models.TextField(max_length=300, help_text="Brief summary for previews")

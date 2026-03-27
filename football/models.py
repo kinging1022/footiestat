@@ -140,6 +140,7 @@ class LeagueTableSnapshot(models.Model):
     draws = models.PositiveSmallIntegerField()
     losses = models.PositiveSmallIntegerField()
     last_five = models.CharField(max_length=50, null=True, blank=True)
+    group_name = models.CharField(max_length=100, null=True, blank=True)
     home_stat = models.JSONField(null=True, blank=True, default=dict)
     away_stat = models.JSONField(null=True, blank=True, default=dict)
 
@@ -220,6 +221,7 @@ class Fixture(models.Model):
     referee = models.CharField(max_length=100, null=True, blank=True)
     venue = models.CharField(max_length=100, null=True, blank=True)
     status = models.CharField(max_length=50, default=STATUS_NS, choices=STATUS_CHOICES)
+    round = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         verbose_name = "Fixture"

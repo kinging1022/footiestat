@@ -25,17 +25,17 @@ def get_fixtures_for_processing(fixture_ids:List[int]) -> List[Dict[str,Any]]:
 
 def format_date_time(date_str: str):
     """
-    Format date and time string to a more readable format.
-
-    :param date_str: Date and time string in ISO format.
-    :return: Formatted date and time string.
+    Parse an ISO date string and return a timezone-aware datetime object.
+    Dates without explicit timezone info are assumed to be UTC.
     """
-    from datetime import datetime
+    from datetime import datetime, timezone as dt_timezone
     try:
         if date_str.endswith('Z'):
             date_str = date_str[:-1] + '+00:00'
         dt = datetime.fromisoformat(date_str)
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=dt_timezone.utc)
+        return dt
     except ValueError as e:
         raise ValueError(f"Invalid date format: {date_str}") from e
     

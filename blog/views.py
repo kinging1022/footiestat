@@ -2,7 +2,6 @@
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.core.paginator import Paginator
-from django.db.models import F
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from .models import Article
@@ -80,7 +79,7 @@ def article_detail(request, slug):
 def create_article(request):
     """Admin-only article creation form"""
     if request.method == 'POST':
-        form = ArticleForm(request.POST)
+        form = ArticleForm(request.POST, request.FILES)
         if form.is_valid():
             article = form.save(commit=False)
             article.author = request.user
@@ -99,7 +98,7 @@ def edit_article(request, slug):
     article = get_object_or_404(Article, slug=slug)
     
     if request.method == 'POST':
-        form = ArticleForm(request.POST, instance=article)
+        form = ArticleForm(request.POST, request.FILES, instance=article)
         if form.is_valid():
             form.save()
             messages.success(request, f'Article "{article.title}" updated successfully!')

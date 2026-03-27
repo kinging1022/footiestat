@@ -27,7 +27,7 @@ def fetch_and_process_day(date_str: str) -> dict:
     logger.info(f"📅 Fetching fixtures for {date_str}")
 
     from football.api_client import get_fixtures
-    fixtures_data = get_fixtures(date=date_str)
+    fixtures_data = get_fixtures(date=date_str, status='NS-1H')
 
     if not fixtures_data or 'response' not in fixtures_data:
         logger.warning(f"⚠️ No data returned for {date_str}")
@@ -114,6 +114,7 @@ def fetch_and_process_day(date_str: str) -> dict:
                     referee=f['fixture'].get('referee'),
                     venue=f.get('fixture', {}).get('venue', {}).get('name'),
                     status=f['fixture']['status']['short'],
+                    round=f['league'].get('round'),
                 )
 
                 if fixture_id in existing_fixture_ids:
@@ -164,7 +165,8 @@ def fetch_and_process_day(date_str: str) -> dict:
                 Fixture.objects.filter(id=fixture.id).update(
                     status=fixture.status,
                     referee=fixture.referee,
-                    venue=fixture.venue
+                    venue=fixture.venue,
+                    round=fixture.round,
                 )
             updated_count = len(fixtures_to_update)
 
@@ -352,9 +354,14 @@ def process_single_team_form(team_id: int, season: int) -> dict:
         raise ValueError(f"Team {team_id} does not exist")
 
     from football.api_client import get_fixtures
-    previous_fixtures = get_fixtures(
-        team_id=team_id, season=season, status='FT-AET-PEN'
-    )
+    if season >= 2026:
+        previous_fixtures = get_fixtures(
+            team_id=team_id, last=30, status='FT-AET-PEN'
+        )
+    else:
+        previous_fixtures = get_fixtures(
+            team_id=team_id, season=season, status='FT-AET-PEN'
+        )
 
     if (
         not previous_fixtures or
@@ -544,22 +551,29 @@ def process_single_league_standings(league_id: int, season: int) -> dict:
         return {"status": "no_data", "league_id": league_id, "season": season}
 
     try:
-        standings = response["response"][0]["league"]["standings"][0]
+        all_groups = response["response"][0]["league"]["standings"][:2]
     except (KeyError, IndexError, TypeError) as e:
         logger.error(f"Malformed standings data for league {league_id}: {e}")
         raise ValueError(f"Malformed standings data: {e}")
 
+    if not all_groups:
+        logger.error(f"Empty standings array for league {league_id}")
+        raise ValueError("Empty standings array")
+
+    # Collect team IDs from all groups
     team_ids = []
-    for t in standings:
-        try:
-            team_id = t.get('team', {}).get('id')
-            if team_id:
-                team_ids.append(team_id)
-        except (KeyError, TypeError, AttributeError):
-            continue
+    for group in all_groups:
+        for t in group:
+            try:
+                team_id = t.get('team', {}).get('id')
+                if team_id:
+                    team_ids.append(team_id)
+            except (KeyError, TypeError, AttributeError):
+                continue
 
     logger.info(
-        f"Found {len(team_ids)} teams in standings for league {league_id}"
+        f"Found {len(team_ids)} teams across {len(all_groups)} group(s) "
+        f"for league {league_id}"
     )
 
     teams_map = {
@@ -576,65 +590,67 @@ def process_single_league_standings(league_id: int, season: int) -> dict:
     table_list    = []
     skipped_count = 0
 
-    for team_data in standings:
-        try:
-            team_id = team_data.get('team', {}).get('id')
-            if not team_id:
-                skipped_count += 1
-                continue
+    for group in all_groups:
+        for team_data in group:
+            try:
+                team_id = team_data.get('team', {}).get('id')
+                if not team_id:
+                    skipped_count += 1
+                    continue
 
-            team = teams_map.get(team_id)
-            if not team:
-                logger.warning(f"Skipping team {team_id} — not in database")
-                skipped_count += 1
-                continue
+                team = teams_map.get(team_id)
+                if not team:
+                    logger.warning(f"Skipping team {team_id} — not in database")
+                    skipped_count += 1
+                    continue
 
-            if team_data.get('rank') is None or team_data.get('points') is None:
-                logger.warning(
-                    f"Skipping team {team_id} — missing rank or points"
+                if team_data.get('rank') is None or team_data.get('points') is None:
+                    logger.warning(
+                        f"Skipping team {team_id} — missing rank or points"
+                    )
+                    skipped_count += 1
+                    continue
+
+                table_list.append(LeagueTableSnapshot(
+                    league=league,
+                    season=season,
+                    rank=team_data["rank"],
+                    team=team,
+                    points=team_data["points"],
+                    group_name=team_data.get("group", "") or "",
+                    goals_for=team_data.get('all', {}).get('goals', {}).get('for', 0),
+                    goals_against=team_data.get('all', {}).get('goals', {}).get('against', 0),
+                    goal_difference=team_data.get("goalsDiff", 0),
+                    matches_played=team_data.get("all", {}).get("played", 0),
+                    wins=team_data.get("all", {}).get("win", 0),
+                    draws=team_data.get("all", {}).get("draw", 0),
+                    losses=team_data.get("all", {}).get("lose", 0),
+                    last_five=team_data.get("form", ""),
+                    home_stat={
+                        'played':        team_data.get('home', {}).get('played', 0),
+                        'wins':          team_data.get('home', {}).get('win', 0),
+                        'draws':         team_data.get('home', {}).get('draw', 0),
+                        'losses':        team_data.get('home', {}).get('lose', 0),
+                        'goals_for':     team_data.get('home', {}).get('goals', {}).get('for', 0),
+                        'goals_against': team_data.get('home', {}).get('goals', {}).get('against', 0),
+                    },
+                    away_stat={
+                        'played':        team_data.get('away', {}).get('played', 0),
+                        'wins':          team_data.get('away', {}).get('win', 0),
+                        'draws':         team_data.get('away', {}).get('draw', 0),
+                        'losses':        team_data.get('away', {}).get('lose', 0),
+                        'goals_for':     team_data.get('away', {}).get('goals', {}).get('for', 0),
+                        'goals_against': team_data.get('away', {}).get('goals', {}).get('against', 0),
+                    }
+                ))
+
+            except (KeyError, TypeError, AttributeError) as e:
+                logger.error(
+                    f"Error creating snapshot for team {team_id} "
+                    f"in league {league_id}: {e}"
                 )
                 skipped_count += 1
                 continue
-
-            table_list.append(LeagueTableSnapshot(
-                league=league,
-                season=season,
-                rank=team_data["rank"],
-                team=team,
-                points=team_data["points"],
-                goals_for=team_data.get('all', {}).get('goals', {}).get('for', 0),
-                goals_against=team_data.get('all', {}).get('goals', {}).get('against', 0),
-                goal_difference=team_data.get("goalsDiff", 0),
-                matches_played=team_data.get("all", {}).get("played", 0),
-                wins=team_data.get("all", {}).get("win", 0),
-                draws=team_data.get("all", {}).get("draw", 0),
-                losses=team_data.get("all", {}).get("lose", 0),
-                last_five=team_data.get("form", ""),
-                home_stat={
-                    'played':        team_data.get('home', {}).get('played', 0),
-                    'wins':          team_data.get('home', {}).get('win', 0),
-                    'draws':         team_data.get('home', {}).get('draw', 0),
-                    'losses':        team_data.get('home', {}).get('lose', 0),
-                    'goals_for':     team_data.get('home', {}).get('goals', {}).get('for', 0),
-                    'goals_against': team_data.get('home', {}).get('goals', {}).get('against', 0),
-                },
-                away_stat={
-                    'played':        team_data.get('away', {}).get('played', 0),
-                    'wins':          team_data.get('away', {}).get('win', 0),
-                    'draws':         team_data.get('away', {}).get('draw', 0),
-                    'losses':        team_data.get('away', {}).get('lose', 0),
-                    'goals_for':     team_data.get('away', {}).get('goals', {}).get('for', 0),
-                    'goals_against': team_data.get('away', {}).get('goals', {}).get('against', 0),
-                }
-            ))
-
-        except (KeyError, TypeError, AttributeError) as e:
-            logger.error(
-                f"Error creating snapshot for team {team_id} "
-                f"in league {league_id}: {e}"
-            )
-            skipped_count += 1
-            continue
 
     if table_list:
         try:
@@ -833,23 +849,34 @@ def compute_advanced_fixture_stats(fixture) -> None:
             logger.info(
                 f"League competition: {fixture.league.name} — filtering by similar rank"
             )
-            home_standing = LeagueTableSnapshot.objects.filter(
-                team=home_team, league=fixture.league, season=season
-            ).first()
 
-            away_standing = LeagueTableSnapshot.objects.filter(
-                team=away_team, league=fixture.league, season=season
-            ).first()
+            # Build combined ranking across all groups by sorting every team
+            # in the league by points descending. This gives a single fair
+            # rank for grouped leagues (e.g. Argentina) instead of per-group
+            # ranks 1-15 that would overlap between groups.
+            all_snapshots = list(
+                LeagueTableSnapshot.objects.filter(
+                    league=fixture.league, season=season
+                ).order_by('-points', '-goal_difference')
+            )
+
+            # combined_rank_map: team_id → 1-based combined position
+            combined_rank_map = {
+                snap.team_id: idx + 1
+                for idx, snap in enumerate(all_snapshots)
+            }
+
+            home_combined_rank = combined_rank_map.get(home_team.id)
+            away_combined_rank = combined_rank_map.get(away_team.id)
 
             home_similar = []
-            if away_standing and away_standing.rank:
-                similar_ids = LeagueTableSnapshot.objects.filter(
-                    league=fixture.league,
-                    season=season,
-                    rank__gte=max(1, away_standing.rank - 3),
-                    rank__lte=away_standing.rank + 3
-                ).values_list('team_id', flat=True)
-
+            if away_combined_rank:
+                lo = max(1, away_combined_rank - 3)
+                hi = away_combined_rank + 3
+                similar_ids = [
+                    tid for tid, rank in combined_rank_map.items()
+                    if lo <= rank <= hi
+                ]
                 home_similar = [
                     build_match_detail(s)
                     for s in home_snapshots.filter(
@@ -858,14 +885,13 @@ def compute_advanced_fixture_stats(fixture) -> None:
                 ]
 
             away_similar = []
-            if home_standing and home_standing.rank:
-                similar_ids = LeagueTableSnapshot.objects.filter(
-                    league=fixture.league,
-                    season=season,
-                    rank__gte=max(1, home_standing.rank - 3),
-                    rank__lte=home_standing.rank + 3
-                ).values_list('team_id', flat=True)
-
+            if home_combined_rank:
+                lo = max(1, home_combined_rank - 3)
+                hi = home_combined_rank + 3
+                similar_ids = [
+                    tid for tid, rank in combined_rank_map.items()
+                    if lo <= rank <= hi
+                ]
                 away_similar = [
                     build_match_detail(s)
                     for s in away_snapshots.filter(

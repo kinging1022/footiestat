@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .page-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 16px 80px;
+  }
+
+  .page-hero {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-eyebrow {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .22em;
+    color: var(--green);
+    margin-bottom: 14px;
+    display: block;
+  }
+
+  .page-title {
+    font-family: var(--font-head);
+    font-size: 52px;
+    letter-spacing: .04em;
+    line-height: 1.05;
+    color: var(--text);
+    margin: 0 0 16px;
+  }
+
+  .page-meta {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .page-meta strong { color: var(--text); }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    margin-bottom: 48px;
+  }
+
+  .toc h2 {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: .12em;
+    color: var(--green);
+    margin: 0 0 14px;
+  }
+
+  .toc ol {
+    list-style: decimal;
+    padding-left: 20px;
+    margin: 0;
+    columns: 2;
+    column-gap: 24px;
+  }
+
+  .toc li {
+    margin-bottom: 8px;
+  }
+
+  .toc a {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color .18s;
+  }
+
+  .toc a:hover { color: var(--green); }
+
+  /* content sections */
+  .policy-section {
+    margin-bottom: 48px;
+    scroll-margin-top: 80px;
+  }
+
+  .policy-section h2 {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: .08em;
+    color: var(--text);
+    margin: 0 0 18px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--green);
+    display: inline-block;
+  }
+
+  .policy-section h3 {
+    font-family: var(--font-head);
+    font-size: 15px;
+    letter-spacing: .08em;
+    color: var(--text);
+    margin: 24px 0 10px;
+  }
+
+  .policy-section p {
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+
+  .policy-section ul, .policy-section ol {
+    padding-left: 22px;
+    margin-bottom: 16px;
+  }
+
+  .policy-section li {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .policy-section a {
+    color: var(--green);
+    text-decoration: underline;
+  }
+
+  /* data table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+  }
+
+  .data-table th {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .1em;
+    color: var(--text);
+    background: var(--bg);
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid var(--border);
+  }
+
+  .data-table td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    line-height: 1.6;
+    vertical-align: top;
+  }
+
+  .highlight-box {
+    background: rgba(26,71,49,.06);
+    border-left: 3px solid var(--green);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+    margin: 16px 0 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 600px) {
+    .page-title { font-size: 36px; }
+    .toc ol { columns: 1; }
+    .data-table { font-size: 12px; }
+    .data-table th, .data-table td { padding: 8px 10px; }
+  }
+</style>
+
+<div class="page-wrapper">
+
+  <div class="page-hero">
+    <span class="page-eyebrow">LEGAL</span>
+    <h1 class="page-title">Privacy Policy</h1>
+    <p class="page-meta">
+      <strong>Last updated:</strong> 26 March 2026 &nbsp;·&nbsp;
+      <strong>Effective date:</strong> 26 March 2026
+    </p>
+  </div>
+
+  <div class="toc">
+    <h2>TABLE OF CONTENTS</h2>
+    <ol>
+      <li><a href="#who-we-are">Who We Are</a></li>
+      <li><a href="#information-we-collect">Information We Collect</a></li>
+      <li><a href="#how-we-use">How We Use Your Information</a></li>
+      <li><a href="#cookies">Cookies &amp; Tracking</a></li>
+      <li><a href="#advertising">Advertising &amp; Third-Party Networks</a></li>
+      <li><a href="#third-parties">Third-Party Services</a></li>
+      <li><a href="#data-retention">Data Retention</a></li>
+      <li><a href="#your-rights">Your Rights</a></li>
+      <li><a href="#children">Children's Privacy</a></li>
+      <li><a href="#changes">Changes to This Policy</a></li>
+      <li><a href="#contact">Contact Us</a></li>
+    </ol>
+  </div>
+
+  <div class="highlight-box">
+    This Privacy Policy explains how FootieStat ("we", "our", "us") collects, uses, and protects your
+    personal information when you visit <strong>footiestat.com</strong>. By using our website you agree
+    to the practices described in this policy. Please read it carefully.
+  </div>
+
+  <div class="policy-section" id="who-we-are">
+    <h2>1. WHO WE ARE</h2>
+    <p>
+      FootieStat is a football statistics and news platform. We are the data controller responsible for
+      personal information collected through this website. If you have questions about this policy or
+      your data, please contact us using the details in Section 11.
+    </p>
+  </div>
+
+  <div class="policy-section" id="information-we-collect">
+    <h2>2. INFORMATION WE COLLECT</h2>
+
+    <h3>Information You Provide Directly</h3>
+    <p>We collect information you actively provide to us, including:</p>
+    <ul>
+      <li>Name and email address when you submit our contact form</li>
+      <li>Any additional information you voluntarily include in messages or enquiries</li>
+    </ul>
+
+    <h3>Information Collected Automatically</h3>
+    <p>When you visit our website, we and our third-party partners may automatically collect:</p>
+    <ul>
+      <li>IP address and approximate geographic location (country/city level)</li>
+      <li>Browser type, version, and language settings</li>
+      <li>Operating system and device type</li>
+      <li>Pages visited, time on page, and navigation path</li>
+      <li>Referring website or search query that brought you to our site</li>
+      <li>Date and time of your visit</li>
+    </ul>
+
+    <h3>Information from Cookies</h3>
+    <p>
+      We and our advertising and analytics partners collect information through cookies and similar
+      tracking technologies. See Section 4 for full details.
+    </p>
+  </div>
+
+  <div class="policy-section" id="how-we-use">
+    <h2>3. HOW WE USE YOUR INFORMATION</h2>
+    <p>We use the information we collect for the following purposes:</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Purpose</th>
+          <th>Legal Basis</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Delivering website content</td>
+          <td>Legitimate interest</td>
+          <td>Providing you with match statistics, analysis, and editorial content</td>
+        </tr>
+        <tr>
+          <td>Responding to enquiries</td>
+          <td>Contract / consent</td>
+          <td>Using your name and email to reply to contact form submissions</td>
+        </tr>
+        <tr>
+          <td>Displaying advertisements</td>
+          <td>Legitimate interest / consent</td>
+          <td>Showing relevant adverts through trusted advertising networks to fund our free service (when advertising is active)</td>
+        </tr>
+        <tr>
+          <td>Analytics and improvement</td>
+          <td>Legitimate interest</td>
+          <td>Understanding how the site is used so we can improve it</td>
+        </tr>
+        <tr>
+          <td>Security and fraud prevention</td>
+          <td>Legitimate interest</td>
+          <td>Detecting and preventing abuse, spam, or malicious activity</td>
+        </tr>
+        <tr>
+          <td>Legal compliance</td>
+          <td>Legal obligation</td>
+          <td>Meeting our obligations under applicable laws</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="policy-section" id="cookies">
+    <h2>4. COOKIES &amp; TRACKING</h2>
+    <p>
+      We use cookies and similar technologies. For full details on all cookies used on this website —
+      including how to opt out — please see our <a href="/cookies/">Cookie Policy</a>.
+    </p>
+    <p>
+      In summary, the types of cookies we use include:
+    </p>
+    <ul>
+      <li><strong>Essential cookies</strong> — required for the website to function correctly</li>
+      <li><strong>Analytics cookies</strong> — used to measure site traffic and user behaviour (e.g. Google Analytics)</li>
+      <li><strong>Advertising cookies</strong> — may be used by third-party advertising networks to serve relevant advertisements (when advertising is active)</li>
+    </ul>
+    <p>
+      You can manage or withdraw your cookie consent at any time by adjusting your browser settings
+      or using the opt-out tools referenced in our Cookie Policy.
+    </p>
+  </div>
+
+  <div class="policy-section" id="advertising">
+    <h2>5. ADVERTISING &amp; THIRD-PARTY NETWORKS</h2>
+    <p>
+      FootieStat intends to display advertising in the future to sustain the platform as a free
+      service. When advertising is introduced, we will work with third-party advertising networks
+      that may use cookies, device identifiers, and browsing data to serve relevant advertisements.
+    </p>
+    <p>
+      Each advertising partner we work with will be an independent data controller for the data
+      they collect. We will update this section with the specific networks in use and links to
+      their privacy policies when advertising becomes active.
+    </p>
+    <p>
+      When advertising is active, you will be able to opt out of personalised advertising through
+      the following industry opt-out tools:
+    </p>
+    <ul>
+      <li><a href="https://optout.aboutads.info/" target="_blank" rel="noopener noreferrer">Digital Advertising Alliance Opt-Out</a></li>
+      <li><a href="https://www.youronlinechoices.eu/" target="_blank" rel="noopener noreferrer">Your Online Choices (EU)</a></li>
+      <li><a href="https://optout.networkadvertising.org/" target="_blank" rel="noopener noreferrer">Network Advertising Initiative Opt-Out</a></li>
+    </ul>
+    <p>
+      Opting out of personalised ads will not remove advertisements from the site — you will
+      see non-personalised (contextual) ads instead.
+    </p>
+  </div>
+
+  <div class="policy-section" id="third-parties">
+    <h2>6. THIRD-PARTY SERVICES</h2>
+    <p>Our website integrates the following third-party services, each with their own privacy policy:</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Purpose</th>
+          <th>Privacy Policy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Advertising networks (when active)</td>
+          <td>Advertising</td>
+          <td>Updated when advertising is introduced</td>
+        </tr>
+        <tr>
+          <td>Google Analytics</td>
+          <td>Site analytics</td>
+          <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">policies.google.com/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Google Fonts</td>
+          <td>Typography (loaded via CDN)</td>
+          <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">policies.google.com/privacy</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      We do not sell your personal data to third parties. We do not share your personal data with
+      third parties except as described in this policy or where required by law.
+    </p>
+  </div>
+
+  <div class="policy-section" id="data-retention">
+    <h2>7. DATA RETENTION</h2>
+    <p>We retain different categories of data for different periods:</p>
+    <ul>
+      <li><strong>Contact form submissions</strong> — retained for up to 12 months, then securely deleted</li>
+      <li><strong>Server logs (including IP addresses)</strong> — retained for up to 90 days for security purposes</li>
+      <li><strong>Analytics data</strong> — retained for up to 26 months (Google Analytics default)</li>
+      <li><strong>Advertising data</strong> — governed by the respective advertising network's own retention policies (when advertising is active)</li>
+    </ul>
+    <p>
+      When data is no longer required for its stated purpose and there is no legal basis for retaining
+      it, we will securely delete or anonymise it.
+    </p>
+  </div>
+
+  <div class="policy-section" id="your-rights">
+    <h2>8. YOUR RIGHTS</h2>
+    <p>
+      Depending on your location, you may have the following rights regarding your personal data:
+    </p>
+    <ul>
+      <li><strong>Right of access</strong> — request a copy of the personal data we hold about you</li>
+      <li><strong>Right to rectification</strong> — request correction of inaccurate data</li>
+      <li><strong>Right to erasure</strong> — request deletion of your personal data ("right to be forgotten")</li>
+      <li><strong>Right to restrict processing</strong> — request we limit how we use your data</li>
+      <li><strong>Right to data portability</strong> — receive your data in a structured, machine-readable format</li>
+      <li><strong>Right to object</strong> — object to processing based on legitimate interest</li>
+      <li><strong>Right to withdraw consent</strong> — where processing is based on consent, withdraw it at any time</li>
+    </ul>
+    <p>
+      To exercise any of these rights, please <a href="/contact/">contact us</a>. We will respond
+      within 30 days. We may need to verify your identity before processing requests.
+    </p>
+    <p>
+      If you believe we have not handled your data correctly, you have the right to lodge a complaint
+      with your national data protection authority.
+    </p>
+  </div>
+
+  <div class="policy-section" id="children">
+    <h2>9. CHILDREN'S PRIVACY</h2>
+    <p>
+      FootieStat is not directed at children under the age of 13. We do not knowingly collect
+      personal information from children under 13. If you believe a child under 13 has provided
+      us with personal data, please contact us immediately and we will take steps to delete such
+      information.
+    </p>
+  </div>
+
+  <div class="policy-section" id="changes">
+    <h2>10. CHANGES TO THIS POLICY</h2>
+    <p>
+      We may update this Privacy Policy from time to time to reflect changes in our practices,
+      technology, legal requirements, or other factors. When we make changes, we will update the
+      "Last updated" date at the top of this page.
+    </p>
+    <p>
+      We encourage you to review this policy periodically. Your continued use of the website after
+      any changes constitutes your acceptance of the updated policy.
+    </p>
+  </div>
+
+  <div class="policy-section" id="contact">
+    <h2>11. CONTACT US</h2>
+    <p>
+      If you have any questions, concerns, or requests related to this Privacy Policy or the
+      handling of your personal data, please contact us:
+    </p>
+    <ul>
+      <li>Via our <a href="/contact/">Contact Form</a></li>
+    </ul>
+    <p>
+      Please include "Privacy Request" in your subject line and describe your request as clearly
+      as possible so we can assist you efficiently.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

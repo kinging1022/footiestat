@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .page-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 16px 80px;
+  }
+
+  .page-hero {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-eyebrow {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .22em;
+    color: var(--green);
+    margin-bottom: 14px;
+    display: block;
+  }
+
+  .page-title {
+    font-family: var(--font-head);
+    font-size: 52px;
+    letter-spacing: .04em;
+    line-height: 1.05;
+    color: var(--text);
+    margin: 0 0 16px;
+  }
+
+  .page-meta {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .page-meta strong { color: var(--text); }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    margin-bottom: 48px;
+  }
+
+  .toc h2 {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: .12em;
+    color: var(--green);
+    margin: 0 0 14px;
+  }
+
+  .toc ol {
+    list-style: decimal;
+    padding-left: 20px;
+    margin: 0;
+    columns: 2;
+    column-gap: 24px;
+  }
+
+  .toc li { margin-bottom: 8px; }
+
+  .toc a {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color .18s;
+  }
+
+  .toc a:hover { color: var(--green); }
+
+  /* sections */
+  .policy-section {
+    margin-bottom: 48px;
+    scroll-margin-top: 80px;
+  }
+
+  .policy-section h2 {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: .08em;
+    color: var(--text);
+    margin: 0 0 18px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--green);
+    display: inline-block;
+  }
+
+  .policy-section h3 {
+    font-family: var(--font-head);
+    font-size: 15px;
+    letter-spacing: .08em;
+    color: var(--text);
+    margin: 24px 0 10px;
+  }
+
+  .policy-section p {
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+
+  .policy-section ul, .policy-section ol {
+    padding-left: 22px;
+    margin-bottom: 16px;
+  }
+
+  .policy-section li {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .policy-section a {
+    color: var(--green);
+    text-decoration: underline;
+  }
+
+  .highlight-box {
+    background: rgba(26,71,49,.06);
+    border-left: 3px solid var(--green);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+    margin: 16px 0 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .warning-box {
+    background: rgba(217,48,37,.05);
+    border-left: 3px solid var(--red);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+    margin: 16px 0 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 600px) {
+    .page-title { font-size: 36px; }
+    .toc ol { columns: 1; }
+  }
+</style>
+
+<div class="page-wrapper">
+
+  <div class="page-hero">
+    <span class="page-eyebrow">LEGAL</span>
+    <h1 class="page-title">Terms of Service</h1>
+    <p class="page-meta">
+      <strong>Last updated:</strong> 26 March 2026 &nbsp;·&nbsp;
+      <strong>Effective date:</strong> 26 March 2026
+    </p>
+  </div>
+
+  <div class="toc">
+    <h2>TABLE OF CONTENTS</h2>
+    <ol>
+      <li><a href="#acceptance">Acceptance of Terms</a></li>
+      <li><a href="#service">Description of Service</a></li>
+      <li><a href="#intellectual-property">Intellectual Property</a></li>
+      <li><a href="#acceptable-use">Acceptable Use</a></li>
+      <li><a href="#user-content">User Content</a></li>
+      <li><a href="#third-party">Third-Party Links &amp; Services</a></li>
+      <li><a href="#disclaimer">Disclaimers</a></li>
+      <li><a href="#liability">Limitation of Liability</a></li>
+      <li><a href="#indemnification">Indemnification</a></li>
+      <li><a href="#termination">Termination</a></li>
+      <li><a href="#governing-law">Governing Law</a></li>
+      <li><a href="#changes">Changes to Terms</a></li>
+      <li><a href="#contact">Contact Us</a></li>
+    </ol>
+  </div>
+
+  <div class="highlight-box">
+    Please read these Terms of Service carefully before using FootieStat. By accessing or using
+    our website, you agree to be bound by these terms. If you do not agree with any part of these
+    terms, you must not use our website.
+  </div>
+
+  <div class="policy-section" id="acceptance">
+    <h2>1. ACCEPTANCE OF TERMS</h2>
+    <p>
+      These Terms of Service ("Terms") govern your access to and use of the FootieStat website
+      located at <strong>footiestat.com</strong> (the "Site"), operated by FootieStat ("we",
+      "us", "our").
+    </p>
+    <p>
+      By visiting, browsing, or otherwise using the Site, you confirm that you have read, understood,
+      and agree to be bound by these Terms and our <a href="/privacy/">Privacy Policy</a>.
+      These Terms apply to all visitors, users, and others who access the Site.
+    </p>
+    <p>
+      If you are accessing the Site on behalf of an organisation, you represent and warrant that
+      you have the authority to bind that organisation to these Terms.
+    </p>
+  </div>
+
+  <div class="policy-section" id="service">
+    <h2>2. DESCRIPTION OF SERVICE</h2>
+    <p>
+      FootieStat provides football statistics, live match data, news articles, match analysis,
+      and related editorial content (the "Service"). The Service is provided free of charge and
+      is supported by advertising revenue.
+    </p>
+    <p>
+      We reserve the right to modify, suspend, or discontinue any part of the Service at any time,
+      with or without notice. We will not be liable to you or any third party for any modification,
+      suspension, or discontinuation.
+    </p>
+  </div>
+
+  <div class="policy-section" id="intellectual-property">
+    <h2>3. INTELLECTUAL PROPERTY</h2>
+    <p>
+      All content on FootieStat — including but not limited to text, articles, match analysis,
+      graphics, logos, icons, images, and the overall look and feel of the website — is the
+      property of FootieStat or its content licensors and is protected by applicable copyright,
+      trademark, and intellectual property laws.
+    </p>
+
+    <h3>What You May Do</h3>
+    <ul>
+      <li>Access and view content for your own personal, non-commercial use</li>
+      <li>Share links to our pages on social media or other websites</li>
+      <li>Quote brief excerpts (no more than 50 words) from articles, provided you clearly
+          attribute FootieStat and link back to the original article</li>
+    </ul>
+
+    <h3>What You May Not Do</h3>
+    <ul>
+      <li>Copy, reproduce, republish, or distribute our content in full without prior written permission</li>
+      <li>Scrape, crawl, or extract data from our website using automated tools without authorisation</li>
+      <li>Use our content for commercial purposes without a licensing agreement</li>
+      <li>Remove or alter any copyright, trademark, or other proprietary notices</li>
+      <li>Use our brand name, logo, or trademarks without prior written consent</li>
+    </ul>
+
+    <p>
+      Football statistics and match data displayed on our site may be sourced from third-party
+      data providers. Such data is subject to those providers' own intellectual property terms.
+    </p>
+  </div>
+
+  <div class="policy-section" id="acceptable-use">
+    <h2>4. ACCEPTABLE USE</h2>
+    <p>You agree to use FootieStat only for lawful purposes and in a manner that does not:</p>
+    <ul>
+      <li>Violate any applicable local, national, or international law or regulation</li>
+      <li>Infringe the rights of any third party, including intellectual property rights</li>
+      <li>Transmit any unsolicited or unauthorised advertising or promotional material (spam)</li>
+      <li>Attempt to gain unauthorised access to our systems, servers, or databases</li>
+      <li>Introduce viruses, malware, or any other harmful code into our systems</li>
+      <li>Interfere with or disrupt the integrity or performance of the Site</li>
+      <li>Use automated scripts to access the Site in a manner that places excessive load on our servers</li>
+      <li>Impersonate any person or entity, or falsely represent your affiliation with any person or entity</li>
+    </ul>
+    <p>
+      We reserve the right to investigate and take appropriate legal action against anyone who, in
+      our sole discretion, violates this provision, including reporting such users to law enforcement
+      authorities.
+    </p>
+  </div>
+
+  <div class="policy-section" id="user-content">
+    <h2>5. USER CONTENT</h2>
+    <p>
+      FootieStat currently does not have user registration, comments, or other user-generated
+      content features on the website. Should such features be introduced in the future, additional
+      terms governing user content will be published and will form part of these Terms.
+    </p>
+    <p>
+      Content submitted via our contact form is used solely to respond to your enquiry and is not
+      published or shared publicly.
+    </p>
+  </div>
+
+  <div class="policy-section" id="third-party">
+    <h2>6. THIRD-PARTY LINKS &amp; SERVICES</h2>
+    <p>
+      Our Site may contain links to third-party websites or services that are not owned or controlled
+      by FootieStat. We have no control over and assume no responsibility for the content, privacy
+      policies, or practices of any third-party websites or services.
+    </p>
+    <p>
+      We strongly advise you to read the terms and privacy policies of any third-party sites you visit.
+      Your use of such third-party sites is at your own risk.
+    </p>
+    <p>
+      Our Site may in the future display advertisements through third-party advertising networks.
+      Clicking on advertisements may direct you to third-party websites. We are not responsible for
+      the content of those websites or any products or services offered on them.
+    </p>
+  </div>
+
+  <div class="policy-section" id="disclaimer">
+    <h2>7. DISCLAIMERS</h2>
+    <div class="warning-box">
+      The information provided on FootieStat is for general informational and entertainment purposes
+      only. We make no warranties about the completeness, accuracy, or reliability of any content.
+    </div>
+    <p>
+      Football statistics, match results, and related data are sourced from third-party providers.
+      While we make every effort to ensure accuracy, we cannot guarantee that all data is error-free,
+      complete, or up to date. Data may be subject to delays or corrections.
+    </p>
+    <p>
+      <strong>Sports betting disclaimer:</strong> Content on FootieStat is not intended to be used
+      as a basis for any form of sports betting or gambling. We accept no liability for any losses
+      incurred through decisions made based on information published on this website.
+    </p>
+    <p>
+      The Site is provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind,
+      either express or implied, including but not limited to implied warranties of merchantability,
+      fitness for a particular purpose, or non-infringement.
+    </p>
+  </div>
+
+  <div class="policy-section" id="liability">
+    <h2>8. LIMITATION OF LIABILITY</h2>
+    <p>
+      To the fullest extent permitted by applicable law, FootieStat and its operators, employees,
+      and affiliates shall not be liable for any indirect, incidental, special, consequential, or
+      punitive damages, including but not limited to:
+    </p>
+    <ul>
+      <li>Loss of profits or revenue</li>
+      <li>Loss of data or business interruption</li>
+      <li>Errors or inaccuracies in content</li>
+      <li>Personal injury or property damage resulting from your use of the Site</li>
+      <li>Any unauthorised access to or use of our servers or personal information stored therein</li>
+    </ul>
+    <p>
+      Our total liability to you for any claim arising out of or relating to these Terms or your
+      use of the Site shall not exceed the greater of (a) the amount you paid to us in the twelve
+      months preceding the claim, or (b) £100 (one hundred pounds sterling).
+    </p>
+  </div>
+
+  <div class="policy-section" id="indemnification">
+    <h2>9. INDEMNIFICATION</h2>
+    <p>
+      You agree to defend, indemnify, and hold harmless FootieStat and its operators, employees,
+      and affiliates from and against any and all claims, damages, obligations, losses, liabilities,
+      costs, or debt and expenses (including legal fees) arising from:
+    </p>
+    <ul>
+      <li>Your use of and access to the Site</li>
+      <li>Your violation of any provision of these Terms</li>
+      <li>Your violation of any third-party right, including intellectual property rights</li>
+      <li>Any claim that your use of the Site caused damage to a third party</li>
+    </ul>
+  </div>
+
+  <div class="policy-section" id="termination">
+    <h2>10. TERMINATION</h2>
+    <p>
+      We reserve the right to terminate or restrict your access to the Site immediately, without
+      prior notice or liability, for any reason, including if you breach these Terms.
+    </p>
+    <p>
+      Sections 3, 7, 8, 9, and 11 of these Terms shall survive any termination of your access to
+      the Site.
+    </p>
+  </div>
+
+  <div class="policy-section" id="governing-law">
+    <h2>11. GOVERNING LAW</h2>
+    <p>
+      These Terms shall be governed and construed in accordance with applicable law, without regard
+      to conflict of law provisions. Any disputes arising under these Terms shall be subject to the
+      exclusive jurisdiction of the applicable courts.
+    </p>
+  </div>
+
+  <div class="policy-section" id="changes">
+    <h2>12. CHANGES TO TERMS</h2>
+    <p>
+      We reserve the right to modify or replace these Terms at any time at our sole discretion.
+      Material changes will be indicated by updating the "Last updated" date at the top of this page.
+    </p>
+    <p>
+      It is your responsibility to review these Terms periodically. Your continued use of the Site
+      after any changes constitutes your acceptance of the new Terms.
+    </p>
+  </div>
+
+  <div class="policy-section" id="contact">
+    <h2>13. CONTACT US</h2>
+    <p>
+      If you have any questions about these Terms of Service, please contact us via our
+      <a href="/contact/">Contact Form</a>.
+    </p>
+    <p>Please include "Terms of Service" in your subject line.</p>
+  </div>
+
+</div>
+{% endblock %}

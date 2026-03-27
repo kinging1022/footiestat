@@ -1,4 +1,4 @@
-{% extends "football/base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
 
@@ -82,6 +82,19 @@
     margin-left: -6px;
     align-self: flex-start;
     margin-top: 2px;
+  }
+
+  .standing-group-badge {
+    font-family: var(--font-head);
+    font-size: 9px;
+    letter-spacing: .08em;
+    color: var(--green);
+    background: rgba(26,71,49,.10);
+    border: 1px solid rgba(26,71,49,.20);
+    padding: 2px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .standing-divider {
@@ -196,11 +209,24 @@
   .table-toggle-btn.active svg { transform: rotate(180deg); }
 
   .league-table-wrapper {
-    max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out;
+    max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out;
   }
-  .league-table-wrapper.show { max-height: 1000px; margin-top: 16px; }
+  .league-table-wrapper.show { margin-top: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  .league-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .table-group-header {
+    padding: 8px 12px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .1em;
+    color: var(--text-muted);
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+  .table-group-header:first-child { border-top: none; }
+
+  .league-table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 12px; }
   .league-table thead { background: var(--bg); border-bottom: 2px solid var(--border); }
   .league-table th {
     padding: 10px 8px; text-align: left;
@@ -288,6 +314,7 @@
 
   /* ── SIDE BY SIDE PANELS ─────────────────────────────────── */
   .last5-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .last5-col { min-width: 0; overflow: hidden; }
   .last5-col:first-child { border-right: 1px solid var(--border); }
 
   .last5-col-head {
@@ -369,7 +396,7 @@
   .col-insight { border-top: 2px solid var(--border); }
   .col-insight-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--border); gap: 8px; }
   .col-insight-row:last-child { border-bottom: none; }
-  .col-insight-lbl { font-size: 10px; color: var(--text-muted); letter-spacing: .05em; text-transform: uppercase; line-height: 1.3; }
+  .col-insight-lbl { font-size: 10px; color: var(--text-muted); letter-spacing: .05em; text-transform: uppercase; line-height: 1.3; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-insight-val { font-size: 14px; font-weight: 700; font-family: var(--font-body); white-space: nowrap; flex-shrink: 0; }
   .col-insight-val.green  { color: var(--green); }
   .col-insight-val.amber  { color: #d97706; }
@@ -462,9 +489,10 @@
     .last5-stat-val { font-size: 13px; }
     .last5-stat-lbl { font-size: 7px; }
     .last5-stat-cell { padding: 8px 3px; }
-    .col-insight-row { padding: 6px 8px; }
-    .col-insight-lbl { font-size: 8px; }
-    .col-insight-val { font-size: 12px; }
+    .col-insight-row { padding: 6px 6px; gap: 4px; }
+    .col-insight-lbl { font-size: 8px; letter-spacing: 0; }
+    .col-insight-val { font-size: 11px; }
+    .pill { font-size: 8px; padding: 2px 5px; }
   }
 </style>
 
@@ -500,10 +528,15 @@
             {% elif home_standing.rank == 3 %}rd
             {% else %}th{% endif %}
           </span>
+          {% if home_standing.group_label %}
+          <span class="standing-group-badge">{{ home_standing.group_label }}</span>
+          {% endif %}
           <div class="standing-divider"></div>
           <div class="standing-record">
             <span class="standing-pts">{{ home_standing.points }} pts</span>
+            {% if home_standing.matches_played > 0 %}
             <span class="standing-wdl">{{ home_standing.wins }}W {{ home_standing.draws }}D {{ home_standing.losses }}L</span>
+            {% endif %}
           </div>
           {% if home_standing.last_five %}
           <div class="standing-form">
@@ -535,10 +568,15 @@
             {% elif away_standing.rank == 3 %}rd
             {% else %}th{% endif %}
           </span>
+          {% if away_standing.group_label %}
+          <span class="standing-group-badge">{{ away_standing.group_label }}</span>
+          {% endif %}
           <div class="standing-divider"></div>
           <div class="standing-record">
             <span class="standing-pts">{{ away_standing.points }} pts</span>
+            {% if away_standing.matches_played > 0 %}
             <span class="standing-wdl">{{ away_standing.wins }}W {{ away_standing.draws }}D {{ away_standing.losses }}L</span>
+            {% endif %}
           </div>
           {% if away_standing.last_five %}
           <div class="standing-form">
@@ -599,6 +637,10 @@
         </svg>
       </button>
       <div class="league-table-wrapper" id="leagueTableWrapper">
+        {% for group in full_table %}
+        {% if group.label %}
+        <div class="table-group-header">{{ group.label }}</div>
+        {% endif %}
         <table class="league-table">
           <thead>
             <tr>
@@ -615,7 +657,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for standing in full_table %}
+            {% for standing in group.rows %}
             <tr {% if standing.team.id == fixture.home_team.id or standing.team.id == fixture.away_team.id %}class="highlight"{% endif %}>
               <td class="table-rank">{{ standing.rank }}</td>
               <td>
@@ -638,6 +680,7 @@
             {% endfor %}
           </tbody>
         </table>
+        {% endfor %}
       </div>
     </div>
   </div>
@@ -676,7 +719,7 @@
             </div>
             <div class="h2h-team-name away">{{ match.away_name }}</div>
             <div class="h2h-meta">
-              {{ match.date|date:"d M Y" }}<br>
+              {{ match.date }}<br>
               <small>{{ match.league_name }}</small>
             </div>
           </div>
@@ -901,10 +944,12 @@
             <span class="col-insight-lbl">Home Win Rate</span>
             <span class="col-insight-val green">{{ home_away_insights.home_home_win_rate|floatformat:0 }}%</span>
           </div>
+          {% if home_away_insights.home_advantage %}
           <div class="col-insight-row">
             <span class="col-insight-lbl">Home Advantage</span>
             <span class="pill {{ home_away_insights.home_advantage }}">{{ home_away_insights.home_advantage }}</span>
           </div>
+          {% endif %}
         </div>
         {% endif %}
       </div>
@@ -948,10 +993,12 @@
             <span class="col-insight-lbl">Away Win Rate</span>
             <span class="col-insight-val amber">{{ home_away_insights.away_away_win_rate|floatformat:0 }}%</span>
           </div>
+          {% if home_away_insights.away_strength %}
           <div class="col-insight-row">
             <span class="col-insight-lbl">Away Strength</span>
             <span class="pill {{ home_away_insights.away_strength }}">{{ home_away_insights.away_strength }}</span>
           </div>
+          {% endif %}
         </div>
         {% endif %}
       </div>
@@ -991,6 +1038,32 @@
         </a>
         {% endif %}
         {% empty %}<div class="no-data">No cup data available</div>{% endfor %}
+        {% if home_cup_stats and home_cup_stats.total %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ home_cup_stats.wins }}</div>
+            <div class="last5-stat-lbl">Wins</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ home_cup_stats.draws }}</div>
+            <div class="last5-stat-lbl">Draws</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ home_cup_stats.losses }}</div>
+            <div class="last5-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Cup Form</span>
+            <span class="pill {{ home_cup_stats.label }}">{{ home_cup_stats.label }}</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Win Rate</span>
+            <span class="col-insight-val green">{{ home_cup_stats.rating|floatformat:0 }}%</span>
+          </div>
+        </div>
+        {% endif %}
       </div>
 
       <div class="last5-col">
@@ -1014,6 +1087,32 @@
         </a>
         {% endif %}
         {% empty %}<div class="no-data">No cup data available</div>{% endfor %}
+        {% if away_cup_stats and away_cup_stats.total %}
+        <div class="last5-stats-row">
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val green">{{ away_cup_stats.wins }}</div>
+            <div class="last5-stat-lbl">Wins</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val">{{ away_cup_stats.draws }}</div>
+            <div class="last5-stat-lbl">Draws</div>
+          </div>
+          <div class="last5-stat-cell">
+            <div class="last5-stat-val red">{{ away_cup_stats.losses }}</div>
+            <div class="last5-stat-lbl">Losses</div>
+          </div>
+        </div>
+        <div class="col-insight">
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Cup Form</span>
+            <span class="pill {{ away_cup_stats.label }}">{{ away_cup_stats.label }}</span>
+          </div>
+          <div class="col-insight-row">
+            <span class="col-insight-lbl">Win Rate</span>
+            <span class="col-insight-val amber">{{ away_cup_stats.rating|floatformat:0 }}%</span>
+          </div>
+        </div>
+        {% endif %}
       </div>
 
     </div>
@@ -1069,10 +1168,12 @@
           </div>
         </div>
         <div class="col-insight">
+          {% if similar_rank_stats.home_record %}
           <div class="col-insight-row">
             <span class="col-insight-lbl">Record vs Similar</span>
             <span class="pill {{ similar_rank_stats.home_record }}">{{ similar_rank_stats.home_record }}</span>
           </div>
+          {% endif %}
           <div class="col-insight-row">
             <span class="col-insight-lbl">Matches Played</span>
             <span class="col-insight-val muted">{{ similar_rank_stats.home_total }}</span>
@@ -1120,10 +1221,12 @@
           </div>
         </div>
         <div class="col-insight">
+          {% if similar_rank_stats.away_record %}
           <div class="col-insight-row">
             <span class="col-insight-lbl">Record vs Similar</span>
             <span class="pill {{ similar_rank_stats.away_record }}">{{ similar_rank_stats.away_record }}</span>
           </div>
+          {% endif %}
           <div class="col-insight-row">
             <span class="col-insight-lbl">Matches Played</span>
             <span class="col-insight-val muted">{{ similar_rank_stats.away_total }}</span>
@@ -1137,6 +1240,18 @@
   {% endif %}{# end similar_rank_stats.has_data #}
   {% endif %}{# end is_cup/else #}
 
+  {% else %}
+  <div class="stats-section">
+    <div class="section-body" style="padding:48px 24px;text-align:center;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;color:var(--border-2);margin:0 auto 16px;display:block;">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <p style="font-size:14px;font-weight:600;color:var(--text);margin:0 0 8px;">Stats are being prepared</p>
+      <p style="font-size:12px;color:var(--text-muted);margin:0;">Pre-match analysis for this fixture will be available closer to kickoff. Check back soon.</p>
+    </div>
+  </div>
   {% endif %}
 
 </div>
@@ -1146,11 +1261,14 @@ function toggleTable(btn) {
   const wrapper = document.getElementById('leagueTableWrapper');
   const text    = btn.querySelector('.toggle-text');
   if (wrapper.classList.contains('show')) {
+    wrapper.style.maxHeight = wrapper.scrollHeight + 'px';
+    requestAnimationFrame(() => { wrapper.style.maxHeight = '0'; });
     wrapper.classList.remove('show');
     text.textContent = 'SHOW FULL TABLE';
     btn.classList.remove('active');
   } else {
     wrapper.classList.add('show');
+    wrapper.style.maxHeight = wrapper.scrollHeight + 'px';
     text.textContent = 'HIDE TABLE';
     btn.classList.add('active');
   }

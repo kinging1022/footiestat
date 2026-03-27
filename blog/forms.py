@@ -20,8 +20,6 @@ class ArticleForm(forms.ModelForm):
             'title': forms.TextInput(attrs={'placeholder': 'Enter article title'}),
             'excerpt': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Brief summary (max 300 characters)'}),
             'content': forms.Textarea(attrs={'rows': 15, 'placeholder': 'Full article content (HTML supported)'}),
-            'image_1': forms.URLInput(attrs={'placeholder': 'https://example.com/image1.jpg'}),
-            'image_2': forms.URLInput(attrs={'placeholder': 'https://example.com/image2.jpg (optional)'}),
         }
     
     def __init__(self, *args, **kwargs):

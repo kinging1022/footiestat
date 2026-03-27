@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  .page-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 16px 80px;
+  }
+
+  .page-hero {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-eyebrow {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .22em;
+    color: var(--green);
+    margin-bottom: 14px;
+    display: block;
+  }
+
+  .page-title {
+    font-family: var(--font-head);
+    font-size: 52px;
+    letter-spacing: .04em;
+    line-height: 1.05;
+    color: var(--text);
+    margin: 0 0 16px;
+  }
+
+  .page-meta {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .page-meta strong { color: var(--text); }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    margin-bottom: 48px;
+  }
+
+  .toc h2 {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: .12em;
+    color: var(--green);
+    margin: 0 0 14px;
+  }
+
+  .toc ol {
+    list-style: decimal;
+    padding-left: 20px;
+    margin: 0;
+  }
+
+  .toc li { margin-bottom: 8px; }
+
+  .toc a {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color .18s;
+  }
+
+  .toc a:hover { color: var(--green); }
+
+  /* sections */
+  .policy-section {
+    margin-bottom: 48px;
+    scroll-margin-top: 80px;
+  }
+
+  .policy-section h2 {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: .08em;
+    color: var(--text);
+    margin: 0 0 18px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--green);
+    display: inline-block;
+  }
+
+  .policy-section h3 {
+    font-family: var(--font-head);
+    font-size: 15px;
+    letter-spacing: .08em;
+    color: var(--text);
+    margin: 24px 0 10px;
+  }
+
+  .policy-section p {
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+  }
+
+  .policy-section ul {
+    padding-left: 22px;
+    margin-bottom: 16px;
+  }
+
+  .policy-section li {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .policy-section a {
+    color: var(--green);
+    text-decoration: underline;
+  }
+
+  /* cookie table */
+  .cookie-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 13px;
+  }
+
+  .cookie-table th {
+    font-family: var(--font-head);
+    font-size: 11px;
+    letter-spacing: .1em;
+    color: var(--text);
+    background: var(--bg);
+    padding: 10px 14px;
+    text-align: left;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .cookie-table td {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    line-height: 1.6;
+    vertical-align: top;
+  }
+
+  .cookie-table tr:hover td { background: rgba(26,71,49,.03); }
+
+  .cookie-type-badge {
+    display: inline-block;
+    font-family: var(--font-head);
+    font-size: 9px;
+    letter-spacing: .1em;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  .badge-essential { background: rgba(26,71,49,.12); color: var(--green); }
+  .badge-analytics { background: rgba(59,130,246,.12); color: #3b82f6; }
+  .badge-advertising { background: rgba(217,48,37,.1); color: var(--red); }
+
+  .highlight-box {
+    background: rgba(26,71,49,.06);
+    border-left: 3px solid var(--green);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+    margin: 16px 0 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* opt-out steps */
+  .browser-list {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  .browser-list li a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all .18s;
+  }
+
+  .browser-list li a:hover {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(26,71,49,.04);
+  }
+
+  .browser-list li a::before {
+    content: '→';
+    font-family: var(--font-head);
+    color: var(--green);
+  }
+
+  @media (max-width: 600px) {
+    .page-title { font-size: 36px; }
+    .cookie-table { font-size: 12px; }
+    .cookie-table th, .cookie-table td { padding: 8px 10px; }
+  }
+</style>
+
+<div class="page-wrapper">
+
+  <div class="page-hero">
+    <span class="page-eyebrow">LEGAL</span>
+    <h1 class="page-title">Cookie Policy</h1>
+    <p class="page-meta">
+      <strong>Last updated:</strong> 26 March 2026 &nbsp;·&nbsp;
+      <strong>Effective date:</strong> 26 March 2026
+    </p>
+  </div>
+
+  <div class="toc">
+    <h2>TABLE OF CONTENTS</h2>
+    <ol>
+      <li><a href="#what-are-cookies">What Are Cookies</a></li>
+      <li><a href="#how-we-use">How We Use Cookies</a></li>
+      <li><a href="#cookie-list">Cookies We Use</a></li>
+      <li><a href="#third-party-cookies">Third-Party Cookies</a></li>
+      <li><a href="#managing-cookies">Managing &amp; Opting Out</a></li>
+      <li><a href="#do-not-track">Do Not Track</a></li>
+      <li><a href="#changes">Changes to This Policy</a></li>
+      <li><a href="#contact">Contact Us</a></li>
+    </ol>
+  </div>
+
+  <div class="highlight-box">
+    This Cookie Policy explains what cookies are, how FootieStat uses them, and what choices you
+    have. By using our website, you consent to our use of cookies as described in this policy.
+    You can manage your preferences at any time — see Section 5 for instructions.
+  </div>
+
+  <div class="policy-section" id="what-are-cookies">
+    <h2>1. WHAT ARE COOKIES</h2>
+    <p>
+      Cookies are small text files placed on your device (computer, tablet, or mobile phone) when
+      you visit a website. They are widely used to make websites work more efficiently and to provide
+      information to website owners.
+    </p>
+    <p>
+      Cookies can be "session cookies" (deleted when you close your browser) or "persistent cookies"
+      (which remain on your device for a set period). They can be set by the website you are visiting
+      ("first-party cookies") or by third-party services operating on that website ("third-party cookies").
+    </p>
+    <p>
+      Similar technologies such as web beacons, pixels, and local storage may also be used for
+      equivalent purposes and are covered by this policy.
+    </p>
+  </div>
+
+  <div class="policy-section" id="how-we-use">
+    <h2>2. HOW WE USE COOKIES</h2>
+    <p>FootieStat uses cookies and similar technologies for the following purposes:</p>
+    <ul>
+      <li><strong>Essential operation:</strong> To ensure the website functions correctly, including security features and session management</li>
+      <li><strong>Analytics:</strong> To understand how visitors use our site, which pages are most popular, and how to improve the user experience</li>
+      <li><strong>Advertising:</strong> To display relevant advertisements through third-party advertising networks when advertising is active on the site</li>
+      <li><strong>Personalisation:</strong> To remember your preferences and improve your experience on return visits</li>
+    </ul>
+  </div>
+
+  <div class="policy-section" id="cookie-list">
+    <h2>3. COOKIES WE USE</h2>
+
+    <h3>Essential Cookies</h3>
+    <p>These cookies are necessary for the website to function and cannot be switched off.</p>
+    <table class="cookie-table">
+      <thead>
+        <tr>
+          <th>Cookie Name</th>
+          <th>Provider</th>
+          <th>Purpose</th>
+          <th>Duration</th>
+          <th>Type</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>csrftoken</td>
+          <td>FootieStat</td>
+          <td>Cross-Site Request Forgery (CSRF) protection for form submissions</td>
+          <td>1 year</td>
+          <td><span class="cookie-type-badge badge-essential">ESSENTIAL</span></td>
+        </tr>
+        <tr>
+          <td>sessionid</td>
+          <td>FootieStat</td>
+          <td>Maintains your session state while browsing the site</td>
+          <td>Session</td>
+          <td><span class="cookie-type-badge badge-essential">ESSENTIAL</span></td>
+        </tr>
+        <tr>
+          <td>messages</td>
+          <td>FootieStat</td>
+          <td>Stores temporary messages (e.g. contact form confirmations)</td>
+          <td>Session</td>
+          <td><span class="cookie-type-badge badge-essential">ESSENTIAL</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Analytics Cookies</h3>
+    <p>These cookies help us understand how visitors interact with our website.</p>
+    <table class="cookie-table">
+      <thead>
+        <tr>
+          <th>Cookie Name</th>
+          <th>Provider</th>
+          <th>Purpose</th>
+          <th>Duration</th>
+          <th>Type</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>_ga</td>
+          <td>Google Analytics</td>
+          <td>Distinguishes unique users by assigning a randomly generated number as a client identifier</td>
+          <td>2 years</td>
+          <td><span class="cookie-type-badge badge-analytics">ANALYTICS</span></td>
+        </tr>
+        <tr>
+          <td>_ga_*</td>
+          <td>Google Analytics</td>
+          <td>Stores and counts page views for Google Analytics 4</td>
+          <td>2 years</td>
+          <td><span class="cookie-type-badge badge-analytics">ANALYTICS</span></td>
+        </tr>
+        <tr>
+          <td>_gid</td>
+          <td>Google Analytics</td>
+          <td>Distinguishes users for session-level analytics</td>
+          <td>24 hours</td>
+          <td><span class="cookie-type-badge badge-analytics">ANALYTICS</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Advertising Cookies</h3>
+    <p>
+      Advertising is not yet active on FootieStat. When it is introduced, third-party advertising
+      networks may set cookies to serve relevant advertisements and measure their performance.
+      This table will be updated with the specific cookies in use at that time.
+    </p>
+  </div>
+
+  <div class="policy-section" id="third-party-cookies">
+    <h2>4. THIRD-PARTY COOKIES</h2>
+    <p>
+      Some cookies on our site are set by third-party services. We do not control these cookies
+      and they are subject to the third parties' own privacy and cookie policies:
+    </p>
+    <ul>
+      <li>
+        <strong>Advertising networks (when active)</strong> — advertising cookies. We will list specific
+        networks and link to their policies when advertising is introduced.
+      </li>
+      <li>
+        <strong>Google Analytics</strong> — analytics cookies.
+        See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.
+      </li>
+      <li>
+        <strong>Google Fonts</strong> — typography. When loading fonts, Google may collect your IP address.
+        See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.
+      </li>
+    </ul>
+  </div>
+
+  <div class="policy-section" id="managing-cookies">
+    <h2>5. MANAGING &amp; OPTING OUT</h2>
+
+    <h3>Browser Settings</h3>
+    <p>
+      You can control and delete cookies through your browser settings. Removing or blocking
+      cookies may affect your experience on our site (for example, some pages may not display
+      correctly). Here are links to cookie management instructions for common browsers:
+    </p>
+    <ul class="browser-list">
+      <li><a href="https://support.google.com/chrome/answer/95647" target="_blank" rel="noopener noreferrer">Google Chrome</a></li>
+      <li><a href="https://support.mozilla.org/en-US/kb/enhanced-tracking-protection-firefox-desktop" target="_blank" rel="noopener noreferrer">Mozilla Firefox</a></li>
+      <li><a href="https://support.apple.com/guide/safari/manage-cookies-sfri11471/mac" target="_blank" rel="noopener noreferrer">Apple Safari</a></li>
+      <li><a href="https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09" target="_blank" rel="noopener noreferrer">Microsoft Edge</a></li>
+    </ul>
+
+    <h3>Opting Out of Personalised Advertising</h3>
+    <p>
+      You can opt out of personalised advertising from Google without blocking all cookies:
+    </p>
+    <ul>
+      <li><a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer">Google Ads Settings</a> — manage Google ad personalisation</li>
+      <li><a href="https://optout.aboutads.info/" target="_blank" rel="noopener noreferrer">Digital Advertising Alliance (DAA) Opt-Out</a></li>
+      <li><a href="https://www.youronlinechoices.eu/" target="_blank" rel="noopener noreferrer">Your Online Choices (EU/UK)</a></li>
+      <li><a href="https://optout.networkadvertising.org/" target="_blank" rel="noopener noreferrer">Network Advertising Initiative (NAI) Opt-Out</a></li>
+    </ul>
+    <p>
+      Note: opting out of personalised ads does not remove advertisements from our site — you
+      will instead see non-personalised (contextual) ads.
+    </p>
+
+    <h3>Opting Out of Google Analytics</h3>
+    <p>
+      You can prevent Google Analytics from collecting data about you by installing the
+      <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">Google Analytics Opt-out Browser Add-on</a>.
+    </p>
+  </div>
+
+  <div class="policy-section" id="do-not-track">
+    <h2>6. DO NOT TRACK</h2>
+    <p>
+      Some browsers include a "Do Not Track" (DNT) feature that signals to websites that you
+      prefer not to be tracked. Our website does not currently respond to DNT signals as there
+      is no consistent industry standard for how to do so.
+    </p>
+    <p>
+      If you wish to limit tracking, we recommend using the opt-out tools listed in Section 5.
+    </p>
+  </div>
+
+  <div class="policy-section" id="changes">
+    <h2>7. CHANGES TO THIS POLICY</h2>
+    <p>
+      We may update this Cookie Policy from time to time as we add new features, use new third-party
+      services, or in response to changes in applicable law. When we make changes, we will update
+      the "Last updated" date at the top of this page.
+    </p>
+    <p>
+      We encourage you to review this policy periodically to stay informed about our use of cookies.
+    </p>
+  </div>
+
+  <div class="policy-section" id="contact">
+    <h2>8. CONTACT US</h2>
+    <p>
+      If you have any questions about our use of cookies or this Cookie Policy, please contact us
+      via our <a href="/contact/">Contact Form</a>.
+    </p>
+    <p>Please include "Cookie Policy" in your subject line.</p>
+  </div>
+
+</div>
+{% endblock %}

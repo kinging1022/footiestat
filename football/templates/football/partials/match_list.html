@@ -16,11 +16,6 @@
       <article class="match-card">
         <div class="match-header">
           <time class="match-time">{{ fixture.date|date:"H:i" }}</time>
-          {% if fixture.status == 'LIVE' or fixture.status == '1H' or fixture.status == '2H' %}
-          <span class="status-badge live">● LIVE</span>
-          {% elif fixture.status == 'FT' %}
-          <span class="status-badge ft">FT</span>
-          {% endif %}
         </div>
         <div class="match-teams">
           <div class="team home">
@@ -47,8 +42,8 @@
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            <span class="view-number">{% widthratio fixture.id 1 47 %}.{{ fixture.id|add:3|divisibleby:7|yesno:"2,8" }}k</span>
-            <span class="view-label">watching</span>
+            <span class="view-number">{% if fixture.home_team.id|divisibleby:7 %}1,243{% elif fixture.home_team.id|divisibleby:5 %}2,418{% elif fixture.home_team.id|divisibleby:11 %}3,071{% elif fixture.home_team.id|divisibleby:3 %}876{% elif fixture.home_team.id|divisibleby:2 %}1,652{% else %}934{% endif %}</span>
+            <span class="view-label">viewed</span>
           </div>
           <a href="{% url 'fixture_stats' fixture.id fixture.slug %}" class="stats-btn-prominent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

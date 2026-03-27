@@ -30,9 +30,9 @@ BASE_API_URL = os.getenv('BASE_API_URL')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
-    '76dc-105-115-6-68.ngrok-free.app',
+    '1c21-102-89-85-238.ngrok-free.app',
     'localhost',
-    '127.0.0.1'
+    '127.0.0.1',
     ''
 ]
 API_KEY = os.getenv('API_KEY')
@@ -78,7 +78,8 @@ INSTALLED_APPS = [
     'django_celery_beat',
     #app
     'football',
-    'blog'
+    'blog',
+    'pages',
 
 
 
@@ -99,13 +100,14 @@ ROOT_URLCONF = 'fbackend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'football.context_processors.fixture_carousel',
             ],
         },
     },
@@ -160,8 +162,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email configuration — replace with real SMTP credentials in production
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'FootieStat <noreply@footiestat.com>')
+CONTACT_EMAIL = os.getenv('CONTACT_EMAIL', EMAIL_HOST_USER)

@@ -1,4 +1,4 @@
-{% extends "football/base.html" %}
+{% extends "base.html" %}
 
 {% block nav_extra %}
 <button class="nav-sidebar-trigger" id="sidebarTrigger" aria-label="Open leagues sidebar" aria-expanded="false">
@@ -383,30 +383,6 @@
     font-weight: 500;
     color: var(--text);
     letter-spacing: .04em;
-  }
-
-  .status-badge {
-    font-family: var(--font-head);
-    font-size: 9px;
-    letter-spacing: .14em;
-    padding: 3px 8px;
-    border-radius: 3px;
-  }
-
-  .status-badge.live {
-    background: var(--red);
-    color: #fff;
-    animation: pulse-badge 1.5s ease-in-out infinite;
-  }
-
-  .status-badge.ft {
-    background: rgba(26,71,49,.15);
-    color: var(--green);
-  }
-
-  @keyframes pulse-badge {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: .75; }
   }
 
   .match-teams {

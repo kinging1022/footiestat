@@ -13,8 +13,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--days',
             type=int,
-            default=5,
-            help='Number of days to bootstrap (default: 5)'
+            default=7,
+            help='Number of days to bootstrap (default: 7)'
         )
 
     def handle(self, *args, **options):

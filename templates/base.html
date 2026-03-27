@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SoccerDaily</title>
+  <title>FootieStat</title>
 
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -228,41 +228,146 @@
       border-radius: 2px;
     }
 
-    /* ── AD BANNER ───────────────────────────────────────────── */
-    .ad-strip {
+    /* ── FIXTURE CAROUSEL ───────────────────────────────────────── */
+    .fc-strip {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 10px clamp(16px, 4vw, 48px);
-      display: flex;
-      justify-content: center;
-    }
-
-    .ad-inner {
-      width: 100%;
-      max-width: 728px;
-      height: 90px;
-      border: 1px dashed var(--border-2);
-      border-radius: 4px;
-      background: var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
       position: relative;
+      height: 72px;
       overflow: hidden;
     }
 
-    .ad-inner::after {
-      content: '';
+    /* progress bar at very bottom of strip */
+    .fc-progress {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--green);
+      z-index: 3;
+    }
+
+    /* slides wrapper */
+    .fc-slides {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* each slide */
+    .fc-slide {
       position: absolute;
       inset: 0;
-      background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.02) 50%, transparent 100%);
-      animation: shimmer 4s ease-in-out infinite;
+      display: grid;
+      grid-template-columns: 1fr 160px 1fr;
+      align-items: center;
+      padding: 0 clamp(16px, 4vw, 48px);
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .4s ease;
     }
-    @keyframes shimmer { 0%,100%{opacity:0} 50%{opacity:1} }
+    .fc-slide.fc-active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .fc-slide:hover { background: var(--bg); }
 
-    .ad-label { font-family: var(--font-head); font-size: 12px; letter-spacing: .18em; color: var(--border-2); }
-    .ad-dims  { font-size: 11px; color: var(--border-2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 3px; }
+    /* home team — left aligned */
+    .fc-team {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .fc-team img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .fc-team-name {
+      font-family: var(--font-head);
+      font-size: 20px;
+      letter-spacing: .06em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* away team — right aligned */
+    .fc-team--away {
+      flex-direction: row-reverse;
+      justify-content: flex-start;
+    }
+
+    /* center block */
+    .fc-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .fc-league {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .fc-league img {
+      width: 13px;
+      height: 13px;
+      object-fit: contain;
+      opacity: .7;
+      flex-shrink: 0;
+    }
+    .fc-league-name {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: .06em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 120px;
+    }
+    .fc-vs {
+      font-family: var(--font-head);
+      font-size: 11px;
+      letter-spacing: .18em;
+      color: var(--text-muted);
+    }
+    .fc-time {
+      font-family: var(--font-head);
+      font-size: 22px;
+      letter-spacing: .08em;
+      color: var(--text);
+      line-height: 1;
+    }
+
+
+    /* counter — top-right */
+    .fc-counter {
+      position: absolute;
+      top: 10px; right: clamp(16px, 4vw, 48px);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: .1em;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .fc-empty {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-head);
+      font-size: 13px;
+      letter-spacing: .14em;
+      color: var(--text-muted);
+    }
 
     /* ── MAIN ────────────────────────────────────────────────── */
     .main {
@@ -680,7 +785,7 @@
     /* ── ENTRY ANIMATIONS ────────────────────────────────────── */
     .ticker-wrap { animation: fd .4s ease both; }
     .nav         { animation: fd .4s .06s ease both; }
-    .ad-strip    { animation: fd .4s .12s ease both; }
+    .fc-strip    { animation: fd .4s .12s ease both; }
     .main        { animation: fu .4s .18s ease both; }
     .site-footer { animation: fu .4s .24s ease both; }
 
@@ -713,12 +818,12 @@
     </div>
     <div class="ticker-track">
       <div class="ticker-scroll">
-        <span>Welcome to SoccerDaily — your daily source for live scores, match analysis, transfer news and expert football coverage</span>
-        <span>SoccerDaily brings you real-time updates, in-depth tactical breakdowns and the stories that shape the beautiful game</span>
-        <span>From the Premier League to La Liga, Serie A to the Bundesliga — SoccerDaily has every matchday covered</span>
-        <span>Welcome to SoccerDaily — your daily source for live scores, match analysis, transfer news and expert football coverage</span>
-        <span>SoccerDaily brings you real-time updates, in-depth tactical breakdowns and the stories that shape the beautiful game</span>
-        <span>From the Premier League to La Liga, Serie A to the Bundesliga — SoccerDaily has every matchday covered</span>
+        <span>Welcome to FootieStat — your daily source for live scores, match analysis, transfer news and expert football coverage</span>
+        <span>FootieStat brings you real-time updates, in-depth tactical breakdowns and the stories that shape the beautiful game</span>
+        <span>From the Premier League to La Liga, Serie A to the Bundesliga — FootieStat has every matchday covered</span>
+        <span>Welcome to FootieStat — your daily source for live scores, match analysis, transfer news and expert football coverage</span>
+        <span>FootieStat brings you real-time updates, in-depth tactical breakdowns and the stories that shape the beautiful game</span>
+        <span>From the Premier League to La Liga, Serie A to the Bundesliga — FootieStat has every matchday covered</span>
       </div>
     </div>
   </div>
@@ -730,9 +835,9 @@
 
     <div class="nav-inner">
       <a href="/" class="nav-logo">
-        <span class="w1">SOCCER</span>
+        <span class="w1">FOOTIE</span>
         <span class="sep" aria-hidden="true"></span>
-        <span class="w2">DAILY</span>
+        <span class="w2">STAT</span>
       </a>
       <ul class="nav-links" role="list">
         <li>
@@ -751,12 +856,37 @@
 
   </nav>
 
-  <!-- ③ AD BANNER -->
-  <div class="ad-strip" aria-label="Advertisement placeholder">
-    <div class="ad-inner">
-      <span class="ad-label">Advertisement</span>
-      <span class="ad-dims">728 × 90</span>
-    </div>
+  <!-- ③ FIXTURE CAROUSEL -->
+  <div class="fc-strip" id="fc-strip">
+    {% if carousel_fixtures %}
+      <div class="fc-progress" id="fc-progress"></div>
+      <div class="fc-counter" id="fc-counter"></div>
+      <div class="fc-slides" id="fc-slides">
+        {% for f in carousel_fixtures %}
+        <a class="fc-slide{% if forloop.first %} fc-active{% endif %}"
+           href="/fixture/{{ f.id }}/{{ f.slug }}/"
+           data-index="{{ forloop.counter0 }}">
+          <div class="fc-team">
+            {% if f.home_logo %}<img src="{{ f.home_logo }}" alt="" loading="lazy">{% endif %}
+            <span class="fc-team-name">{{ f.home_name }}</span>
+          </div>
+          <div class="fc-center">
+            <div class="fc-league">
+              {% if f.league_logo %}<img src="{{ f.league_logo }}" alt="" loading="lazy">{% endif %}
+              <span class="fc-league-name">{{ f.league_name }}</span>
+            </div>
+            <span class="fc-time">{{ f.date|date:"H:i" }}</span>
+          </div>
+          <div class="fc-team fc-team--away">
+            {% if f.away_logo %}<img src="{{ f.away_logo }}" alt="" loading="lazy">{% endif %}
+            <span class="fc-team-name">{{ f.away_name }}</span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="fc-empty">No fixtures scheduled today</div>
+    {% endif %}
   </div>
 
   <!-- ④ CONTENT -->
@@ -768,7 +898,7 @@
   <footer class="site-footer" role="contentinfo">
     <div class="footer-content">
       <div class="footer-section">
-        <h4>SOCCER DAILY</h4>
+        <h4>FOOTIE STAT</h4>
         <p>Your comprehensive source for live football scores, in-depth match analysis, and the latest news from leagues around the world.</p>
         <div class="footer-social">
           <a href="#" aria-label="Twitter">
@@ -801,20 +931,20 @@
       <div class="footer-section">
         <h4>INFORMATION</h4>
         <ul>
-          <li><a href="/about">About Us</a></li>
-          <li><a href="/contact">Contact</a></li>
-          <li><a href="/advertise">Advertise</a></li>
-          <li><a href="/api">API Access</a></li>
-          <li><a href="/careers">Careers</a></li>
+          <li><a href="/about/">About Us</a></li>
+          <li><a href="/contact/">Contact</a></li>
+          <li><a href="/privacy/">Privacy Policy</a></li>
+          <li><a href="/terms/">Terms of Service</a></li>
+          <li><a href="/cookies/">Cookie Policy</a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>&copy; 2026 SoccerDaily. All rights reserved.</p>
+      <p>&copy; 2026 FootieStat. All rights reserved.</p>
       <div class="footer-legal">
-        <a href="/privacy">Privacy Policy</a>
-        <a href="/terms">Terms of Service</a>
-        <a href="/cookies">Cookie Policy</a>
+        <a href="/privacy/">Privacy Policy</a>
+        <a href="/terms/">Terms of Service</a>
+        <a href="/cookies/">Cookie Policy</a>
       </div>
     </div>
   </footer>
@@ -854,6 +984,36 @@
     document.addEventListener('htmx:beforeRequest', startLoading);
     document.addEventListener('htmx:afterSettle',   stopLoading);
     document.addEventListener('htmx:responseError', stopLoading);
+
+    // Fixture carousel — auto-advance
+    (function () {
+      const slides  = Array.from(document.querySelectorAll('.fc-slide'));
+      const counter = document.getElementById('fc-counter');
+      const strip   = document.getElementById('fc-strip');
+      if (!slides.length) return;
+
+      const INTERVAL = 4000;
+      let current = 0;
+      let timer;
+
+      function show(idx) {
+        slides[current].classList.remove('fc-active');
+        current = (idx + slides.length) % slides.length;
+        slides[current].classList.add('fc-active');
+        if (counter) counter.textContent = (current + 1) + ' / ' + slides.length;
+      }
+
+      function startTimer() {
+        clearInterval(timer);
+        timer = setInterval(() => show(current + 1), INTERVAL);
+      }
+
+      strip.addEventListener('mouseenter', () => clearInterval(timer));
+      strip.addEventListener('mouseleave', startTimer);
+
+      show(0);
+      startTimer();
+    })();
   </script>
 
 </body>

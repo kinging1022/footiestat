@@ -30,9 +30,9 @@ MAX_RETRY_COUNT = 5
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def ingest_next_day_fixtures(self):
-    """Daily task — fetch fixtures for Day 5. Runs at 2 AM."""
+    """Daily task — fetch fixtures for Day 6. Runs at 2 AM."""
     try:
-        target_date = datetime.now() + timedelta(days=5)
+        target_date = datetime.now() + timedelta(days=6)
         date_str    = target_date.strftime('%Y-%m-%d')
         logger.info(f"🚀 Daily ingestion: Fetching fixtures for {date_str}")
 
@@ -485,8 +485,6 @@ def process_detailed_stats_batch(self):
 
         for ingestion in ingestions:
 
-            # ── Source 1: Form arrays from AdvancedStats JSON ──────────────
-            # Fix: .get() not .filter() — filter returns queryset not object
             try:
                 adv = FixtureAdvancedStats.objects.get(
                     fixture=ingestion.fixture
@@ -516,7 +514,6 @@ def process_detailed_stats_batch(self):
                     except ValueError:
                         continue
 
-                    # Fix: tuple () not set {}
                     matches_to_process.append((
                         ingestion.fixture.id,  # parent_fixture_id
                         match_id,              # fixture_id (past match)
@@ -563,8 +560,6 @@ def process_detailed_stats_batch(self):
                     }
                 ))
 
-        # ── Deduplicate by past match ID — OUTSIDE ingestion loop ─────────
-        # Fix: was inside loop so only last ingestion's matches were deduped
         seen           = {}
         unique_matches = []
         for parent_id, match_id, parsed_date, score_details in matches_to_process:
@@ -574,8 +569,7 @@ def process_detailed_stats_batch(self):
                     (parent_id, match_id, parsed_date, score_details)
                 )
 
-        # ── Skip already processed ─────────────────────────────────────────
-        # match_id is the PK — query past match IDs directly
+       
         existing_stats = set(
             FixtureStatistics.objects.filter(
                 match_id__in=[m[1] for m in unique_matches]
@@ -694,7 +688,6 @@ def process_detailed_stats_batch(self):
                     ).values_list('match_id', flat=True)
                 )
 
-                # Resolved = has stats OR confirmed will never have stats
                 effectively_done = existing_in_db | (
                     all_needed_ids & no_stats_ever
                 )

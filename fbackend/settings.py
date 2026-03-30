@@ -29,12 +29,8 @@ BASE_API_URL = os.getenv('BASE_API_URL')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = [
-    '1c21-102-89-85-238.ngrok-free.app',
-    'localhost',
-    '127.0.0.1',
-    ''
-]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
 API_KEY = os.getenv('API_KEY')
 
 

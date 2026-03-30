@@ -7,7 +7,7 @@ import time
 
 
 class Command(BaseCommand):
-    help = 'Bootstrap initial 5 days of fixtures (run once on first deployment)'
+    help = 'Bootstrap initial 7 days of fixtures (run once on first deployment)'
 
     def add_arguments(self, parser):
         parser.add_argument(

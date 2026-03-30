@@ -131,7 +131,7 @@ class Command(BaseCommand):
                         id=league_data['id'],
                         name=league_data['name'],
                         logo=league_data.get('logo'),
-                        type=league_data.get('type'),
+                        type=league_data.get('type') or '',
                         country=country,
                         season=season_year
                     )

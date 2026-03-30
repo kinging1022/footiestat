@@ -27,7 +27,7 @@ def fetch_and_process_day(date_str: str) -> dict:
     logger.info(f"📅 Fetching fixtures for {date_str}")
 
     from football.api_client import get_fixtures
-    fixtures_data = get_fixtures(date=date_str, status='NS-1H')
+    fixtures_data = get_fixtures(date=date_str)
 
     if not fixtures_data or 'response' not in fixtures_data:
         logger.warning(f"⚠️ No data returned for {date_str}")
@@ -249,8 +249,14 @@ def process_single_h2h(
             logger.warning(f"Fixture {fixture_id} not found in database")
             raise ValueError(f"Fixture {fixture_id} does not exist")
 
-        # ── Only save last 5 H2H matches — view only shows 5 ─────────────
-        h2h_response  = h2h_data['response'][-5:]
+        # ── Sort by date then take last 6 ─────────────────────────────────
+        # API returns unsorted results and sometimes includes the upcoming
+        # fixture (not yet played). Taking 6 gives the view a buffer to
+        # skip any unplayed match and still show 5 recent results.
+        h2h_response = sorted(
+            h2h_data['response'],
+            key=lambda h: h.get('fixture', {}).get('date', '')
+        )[-6:]
         h2h_matches   = []
         skipped_count = 0
 

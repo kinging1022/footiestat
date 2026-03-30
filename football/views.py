@@ -136,7 +136,54 @@ def home(request):
             "label":    d.strftime("%A, %d %b %Y"),
         })
 
-    # Cache key per date+league combination — data is stable for the whole day
+    # ── Sidebar cache (date-only key — shared across all league filters) ──
+    sidebar_cache_key = f'sidebar_{selected_date}'
+    sidebar_cached    = cache.get(sidebar_cache_key)
+
+    if sidebar_cached:
+        countries_data = sidebar_cached['countries']
+        total_fixtures = sidebar_cached['total_fixtures']
+    else:
+        fixtures_for_sidebar = Fixture.objects.filter(
+            date__date=selected_date
+        ).select_related('league', 'league__country')
+
+        countries_dict = defaultdict(lambda: {'leagues': {}, 'total_fixtures': 0})
+        for fixture in fixtures_for_sidebar:
+            country_name = fixture.league.country.name
+            league_id    = fixture.league.id
+            if league_id not in countries_dict[country_name]['leagues']:
+                countries_dict[country_name]['leagues'][league_id] = {
+                    'id':          league_id,
+                    'name':        fixture.league.name,
+                    'logo':        fixture.league.logo,
+                    'is_priority': fixture.league.is_priority,
+                    'priority':    fixture.league.priority,
+                    'count':       0
+                }
+            countries_dict[country_name]['leagues'][league_id]['count'] += 1
+            countries_dict[country_name]['total_fixtures'] += 1
+
+        countries_data = []
+        for country_name in sorted(countries_dict.keys()):
+            country_info = countries_dict[country_name]
+            leagues_list = sorted(
+                country_info['leagues'].values(),
+                key=lambda x: (x['priority'] if x['priority'] else 999, x['name'])
+            )
+            countries_data.append({
+                'name':           country_name,
+                'total_fixtures': country_info['total_fixtures'],
+                'leagues':        leagues_list
+            })
+
+        total_fixtures = sum(c['total_fixtures'] for c in countries_data)
+        cache.set(sidebar_cache_key, {
+            'countries':      countries_data,
+            'total_fixtures': total_fixtures,
+        }, timeout=_24H)
+
+    # ── Main content cache (date + league filter) ─────────────────────────
     cache_key = f'home_{selected_date}_{selected_league_id or "all"}'
     cached    = cache.get(cache_key)
 
@@ -145,8 +192,8 @@ def home(request):
             'dates':                dates,
             'selected_date':        selected_date,
             'selected_league_id':   selected_league_id,
-            'countries':            cached['countries'],
-            'total_fixtures':       cached['total_fixtures'],
+            'countries':            countries_data,
+            'total_fixtures':       total_fixtures,
             'leagues_with_fixtures':cached['leagues_with_fixtures'],
             'display_mode':         cached['display_mode'],
         }
@@ -154,41 +201,7 @@ def home(request):
             return render(request, 'football/partials/home_htmx.html', context)
         return render(request, 'football/home.html', context)
 
-    # ── Cache miss: run queries and build context ─────────────────────────
-
-    fixtures_for_sidebar = Fixture.objects.filter(
-        date__date=selected_date
-    ).select_related('league', 'league__country')
-
-    countries_dict = defaultdict(lambda: {'leagues': {}, 'total_fixtures': 0})
-    for fixture in fixtures_for_sidebar:
-        country_name = fixture.league.country.name
-        league_id    = fixture.league.id
-        if league_id not in countries_dict[country_name]['leagues']:
-            countries_dict[country_name]['leagues'][league_id] = {
-                'id':          league_id,
-                'name':        fixture.league.name,
-                'logo':        fixture.league.logo,
-                'is_priority': fixture.league.is_priority,
-                'priority':    fixture.league.priority,
-                'count':       0
-            }
-        countries_dict[country_name]['leagues'][league_id]['count'] += 1
-        countries_dict[country_name]['total_fixtures'] += 1
-
-    countries_data = []
-    for country_name in sorted(countries_dict.keys()):
-        country_info = countries_dict[country_name]
-        leagues_list = sorted(
-            country_info['leagues'].values(),
-            key=lambda x: (x['priority'] if x['priority'] else 999, x['name'])
-        )
-        countries_data.append({
-            'name':           country_name,
-            'total_fixtures': country_info['total_fixtures'],
-            'leagues':        leagues_list
-        })
-
+    # ── Cache miss: build main content ────────────────────────────────────
     fixtures_query = Fixture.objects.filter(
         date__date=selected_date
     ).select_related('home_team', 'away_team', 'league', 'league__country')
@@ -212,12 +225,12 @@ def home(request):
             league_id__in=priority_league_id_set
         ).order_by('league__priority', 'league__name', 'date')[:100]
 
-        if priority_fixtures.exists():
-            # Priority leagues first, then up to 12 extra leagues alphabetically
+        priority_fixtures_list = list(priority_fixtures)
+        if priority_fixtures_list:
             extra_fixtures = fixtures_query.exclude(
                 league_id__in=priority_league_id_set
-            ).order_by('league__name', 'date')
-            fixtures     = list(priority_fixtures) + list(extra_fixtures)
+            ).order_by('league__name', 'date')[:375]
+            fixtures     = priority_fixtures_list + list(extra_fixtures)
             display_mode = 'priority_leagues'
         else:
             fixtures     = fixtures_query.order_by('league__name', 'date')[:100]
@@ -229,13 +242,13 @@ def home(request):
 
     if display_mode == 'priority_leagues':
         priority_sorted = sorted(
-            [(l, f) for l, f in fixtures_by_league.items() if l.id in priority_league_id_set],
+            [(lg, f) for lg, f in fixtures_by_league.items() if lg.id in priority_league_id_set],
             key=lambda x: (x[0].priority or 999, x[0].name)
         )
         extra_sorted = sorted(
-            [(l, f) for l, f in fixtures_by_league.items() if l.id not in priority_league_id_set],
+            [(lg, f) for lg, f in fixtures_by_league.items() if lg.id not in priority_league_id_set],
             key=lambda x: x[0].name
-        )[:12]
+        )[:15]
         sorted_leagues = priority_sorted + extra_sorted
     else:
         sorted_leagues = sorted(
@@ -254,11 +267,7 @@ def home(request):
             'is_priority': league.is_priority,
         })
 
-    total_fixtures = fixtures_for_sidebar.count()
-
     cache.set(cache_key, {
-        'countries':             countries_data,
-        'total_fixtures':        total_fixtures,
         'leagues_with_fixtures': leagues_with_fixtures,
         'display_mode':          display_mode,
     }, timeout=_24H)

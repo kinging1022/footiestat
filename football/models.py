@@ -27,7 +27,7 @@ class League(models.Model):
     id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100, verbose_name="League Name")
     logo = models.URLField(verbose_name="League Logo URL", blank=True, null=True)
-    type = models.CharField(max_length=50, blank=True)
+    type = models.CharField(max_length=50, blank=True, null=True)
     country = models.ForeignKey(
         Country, 
         on_delete=models.CASCADE,
@@ -66,7 +66,7 @@ class League(models.Model):
 class Team(models.Model):
     id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100, db_index=True, verbose_name="Team Name")
-    short_name = models.CharField(max_length=20, blank=True)
+    short_name = models.CharField(max_length=20, blank=True, null=True)
     logo = models.URLField(verbose_name="Team Logo URL", blank=True, null=True)
     country = models.ForeignKey(Country,on_delete=models.PROTECT,related_name='teams')
     national = models.BooleanField(default=False)

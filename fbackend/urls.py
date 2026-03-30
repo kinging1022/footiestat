@@ -7,6 +7,7 @@ from django.contrib.sitemaps.views import sitemap
 from football.sitemaps import StaticSitemap, FixtureSitemap
 from blog.sitemaps import BlogHomeSitemap, ArticleSitemap
 
+
 sitemaps = {
     'static': StaticSitemap,
     'fixtures': FixtureSitemap,
@@ -20,4 +21,6 @@ urlpatterns = [
     path('', include('football.urls')),
     path('', include('pages.urls')),
     path('', include('blog.urls')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] 
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

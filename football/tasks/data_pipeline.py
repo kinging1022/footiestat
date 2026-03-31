@@ -79,7 +79,8 @@ def process_h2h_batch(self):
             'fixture',
             'fixture__home_team',
             'fixture__away_team',
-        )[:H2H_BATCH_SIZE]
+            'fixture__league',
+        ).order_by('fixture__league__priority')[:H2H_BATCH_SIZE]
 
         if not ingestions:
             return {"status": "no_work", "processed": 0}
@@ -158,7 +159,7 @@ def process_form_batch(self):
             'fixture__home_team',
             'fixture__away_team',
             'fixture__league'
-        )[:FORM_BATCH_SIZE]
+        ).order_by('fixture__league__priority')[:FORM_BATCH_SIZE]
 
         if not ingestions:
             return {"status": "no_work", "processed": 0}
@@ -253,7 +254,7 @@ def process_standings_batch(self):
         ingestions = FixtureIngestion.objects.filter(
             needs_standings=True,
             standings_retry_count__lt=MAX_RETRY_COUNT
-        ).select_related('fixture__league')[:STANDINGS_BATCH_SIZE * 2]
+        ).select_related('fixture__league').order_by('fixture__league__priority')[:STANDINGS_BATCH_SIZE * 2]
 
         if not ingestions:
             return {"status": "no_work", "processed": 0}
@@ -347,7 +348,7 @@ def process_advanced_stats_batch(self):
             needs_h2h=False,
             needs_form=False,
             needs_standings=False
-        ).select_related('fixture')[:ADVANCED_STATS_BATCH_SIZE]
+        ).select_related('fixture__league').order_by('fixture__league__priority')[:ADVANCED_STATS_BATCH_SIZE]
 
         if not ingestions:
             return {"status": "no_work", "processed": 0}
@@ -463,7 +464,7 @@ def process_detailed_stats_batch(self):
             needs_form=False,
             needs_standings=False,
             needs_advanced_stats=False
-        ).select_related('fixture')[:DETAILED_STATS_BATCH_SIZE]
+        ).select_related('fixture__league').order_by('fixture__league__priority')[:DETAILED_STATS_BATCH_SIZE]
 
         if not ingestions.exists():
             logger.info(

@@ -242,7 +242,7 @@ def home(request):
         display_mode = 'league_filter'
         priority_league_id_set = set()
     else:
-        priority_list = [f for f in all_fixtures if f.league.priority <= 20][:100]
+        priority_list = [f for f in all_fixtures if f.league.priority <= 100][:100]
         if priority_list:
             # Priority leagues are playing — show only them, skip non-priority noise
             fixtures               = priority_list
@@ -278,7 +278,7 @@ def home(request):
             'league_name': league.name,
             'league_logo': league.logo,
             'country':     league.country.name,
-            'is_priority': league.priority <= 20,
+            'is_priority': league.priority <= 100,
             'fixtures':    [_serialize_fixture_card(f) for f in league_fixtures],
         })
 

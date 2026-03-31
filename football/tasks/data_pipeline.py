@@ -595,9 +595,13 @@ def process_detailed_stats_batch(self):
         processed     = 0
         failed        = 0
         no_fixture    = 0
+        rate_limited  = False
         no_stats_ever = set()  # past matches confirmed to never have stats
 
         for parent_id, match_id, parsed_date, score_details in to_process:
+            if rate_limited:
+                break
+
             try:
                 from football.tasks import process_single_fixture_stats
 
@@ -624,6 +628,14 @@ def process_detailed_stats_batch(self):
 
                 else:
                     failed += 1
+
+            except RateLimitExceeded as exc:
+                logger.warning(
+                    f"⚠️ Rate limit hit processing match {match_id}, "
+                    f"stopping batch (wait {exc.wait_time:.1f}s). "
+                    f"Processed {processed} so far."
+                )
+                rate_limited = True
 
             except Exception as exc:
                 logger.error(

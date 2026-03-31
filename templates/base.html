@@ -220,146 +220,6 @@
 
 
     /* ── FIXTURE CAROUSEL ───────────────────────────────────────── */
-    .fc-strip {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      position: relative;
-      height: 72px;
-      overflow: hidden;
-    }
-
-    /* progress bar at very bottom of strip */
-    .fc-progress {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 2px;
-      background: var(--green);
-      z-index: 3;
-    }
-
-    /* slides wrapper */
-    .fc-slides {
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-
-    /* each slide */
-    .fc-slide {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      grid-template-columns: 1fr 160px 1fr;
-      align-items: center;
-      padding: 0 clamp(16px, 4vw, 48px);
-      gap: 12px;
-      text-decoration: none;
-      color: inherit;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .4s ease;
-    }
-    .fc-slide.fc-active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .fc-slide:hover { background: var(--bg); }
-
-    /* home team — left aligned */
-    .fc-team {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
-    .fc-team img {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-      flex-shrink: 0;
-    }
-    .fc-team-name {
-      font-family: var(--font-head);
-      font-size: 20px;
-      letter-spacing: .06em;
-      color: var(--text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    /* away team — right aligned */
-    .fc-team--away {
-      flex-direction: row-reverse;
-      justify-content: flex-start;
-    }
-
-    /* center block */
-    .fc-center {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
-    }
-    .fc-league {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .fc-league img {
-      width: 13px;
-      height: 13px;
-      object-fit: contain;
-      opacity: .7;
-      flex-shrink: 0;
-    }
-    .fc-league-name {
-      font-size: 10px;
-      color: var(--text-muted);
-      letter-spacing: .06em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 120px;
-    }
-    .fc-vs {
-      font-family: var(--font-head);
-      font-size: 11px;
-      letter-spacing: .18em;
-      color: var(--text-muted);
-    }
-    .fc-time {
-      font-family: var(--font-head);
-      font-size: 22px;
-      letter-spacing: .08em;
-      color: var(--text);
-      line-height: 1;
-    }
-
-
-    /* counter — top-right */
-    .fc-counter {
-      position: absolute;
-      top: 10px; right: clamp(16px, 4vw, 48px);
-      font-size: 10px;
-      color: var(--text-muted);
-      letter-spacing: .1em;
-      z-index: 2;
-      pointer-events: none;
-    }
-
-    .fc-empty {
-      height: 72px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--font-head);
-      font-size: 13px;
-      letter-spacing: .14em;
-      color: var(--text-muted);
-    }
-
     /* ── MAIN ────────────────────────────────────────────────── */
     .main {
       flex: 1;
@@ -776,7 +636,6 @@
     /* ── ENTRY ANIMATIONS ────────────────────────────────────── */
     .ticker-wrap { animation: fd .4s ease both; }
     .nav         { animation: fd .4s .06s ease both; }
-    .fc-strip    { animation: fd .4s .12s ease both; }
     .main        { animation: fu .4s .18s ease both; }
     .site-footer { animation: fu .4s .24s ease both; }
 
@@ -846,38 +705,8 @@
 
   </nav>
 
-  <!-- ③ FIXTURE CAROUSEL -->
-  <div class="fc-strip" id="fc-strip">
-    {% if carousel_fixtures %}
-      <div class="fc-progress" id="fc-progress"></div>
-      <div class="fc-counter" id="fc-counter"></div>
-      <div class="fc-slides" id="fc-slides">
-        {% for f in carousel_fixtures %}
-        <a class="fc-slide{% if forloop.first %} fc-active{% endif %}"
-           href="/fixture/{{ f.id }}/{{ f.slug }}/"
-           data-index="{{ forloop.counter0 }}">
-          <div class="fc-team">
-            {% if f.home_logo %}<img src="{{ f.home_logo }}" alt="" loading="lazy">{% endif %}
-            <span class="fc-team-name">{{ f.home_name }}</span>
-          </div>
-          <div class="fc-center">
-            <div class="fc-league">
-              {% if f.league_logo %}<img src="{{ f.league_logo }}" alt="" loading="lazy">{% endif %}
-              <span class="fc-league-name">{{ f.league_name }}</span>
-            </div>
-            <span class="fc-time">{{ f.date|date:"H:i" }}</span>
-          </div>
-          <div class="fc-team fc-team--away">
-            {% if f.away_logo %}<img src="{{ f.away_logo }}" alt="" loading="lazy">{% endif %}
-            <span class="fc-team-name">{{ f.away_name }}</span>
-          </div>
-        </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="fc-empty">No fixtures scheduled today</div>
-    {% endif %}
-  </div>
+  <!-- ③ BELOW-NAV SLOT — filled per page, empty by default -->
+  {% block below_nav %}{% endblock %}
 
   <!-- ④ CONTENT -->
   <main class="main" id="main-content">
@@ -975,36 +804,8 @@
     document.addEventListener('htmx:afterSettle',   stopLoading);
     document.addEventListener('htmx:responseError', stopLoading);
 
-    // Fixture carousel — auto-advance
-    (function () {
-      const slides  = Array.from(document.querySelectorAll('.fc-slide'));
-      const counter = document.getElementById('fc-counter');
-      const strip   = document.getElementById('fc-strip');
-      if (!slides.length) return;
-
-      const INTERVAL = 4000;
-      let current = 0;
-      let timer;
-
-      function show(idx) {
-        slides[current].classList.remove('fc-active');
-        current = (idx + slides.length) % slides.length;
-        slides[current].classList.add('fc-active');
-        if (counter) counter.textContent = (current + 1) + ' / ' + slides.length;
-      }
-
-      function startTimer() {
-        clearInterval(timer);
-        timer = setInterval(() => show(current + 1), INTERVAL);
-      }
-
-      strip.addEventListener('mouseenter', () => clearInterval(timer));
-      strip.addEventListener('mouseleave', startTimer);
-
-      show(0);
-      startTimer();
-    })();
   </script>
+  {% block extra_js %}{% endblock %}
 
 </body>
 </html>

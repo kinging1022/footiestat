@@ -86,13 +86,9 @@ def process_h2h_batch(self):
 
         logger.info(f"🔄 H2H batch: {len(ingestions)} fixtures")
 
-        processed    = 0
-        rate_limited = False
+        processed = 0
 
         for ingestion in ingestions:
-            if rate_limited:
-                break
-
             try:
                 from football.tasks import process_single_h2h
 
@@ -114,11 +110,12 @@ def process_h2h_batch(self):
                     ingestion.check_and_mark_complete()
                     processed += 1
 
-            except RateLimitExceeded:
-                logger.warning("⚠️ Rate limit hit, stopping H2H batch")
-                ingestion.h2h_retry_count += 1
-                ingestion.save(update_fields=['h2h_retry_count', 'updated_at'])
-                rate_limited = True
+            except RateLimitExceeded as exc:
+                logger.warning(
+                    f"⚠️ Rate limit hit H2H fixture {ingestion.fixture.id}, "
+                    f"sleeping {exc.wait_time:.2f}s then continuing"
+                )
+                time.sleep(exc.wait_time)
 
             except Exception as exc:
                 logger.error(
@@ -189,12 +186,8 @@ def process_form_batch(self):
 
         processed       = 0
         processed_teams = set()
-        rate_limited    = False
 
         for team_id, season in list(teams_to_process)[:FORM_BATCH_SIZE * 2]:
-            if rate_limited:
-                break
-
             try:
                 from football.tasks import process_single_team_form
 
@@ -206,9 +199,12 @@ def process_form_batch(self):
                     processed_teams.add((team_id, season))
                     processed += 1
 
-            except RateLimitExceeded:
-                logger.warning("⚠️ Rate limit hit, stopping form batch")
-                rate_limited = True
+            except RateLimitExceeded as exc:
+                logger.warning(
+                    f"⚠️ Rate limit hit form team {team_id}, "
+                    f"sleeping {exc.wait_time:.2f}s then continuing"
+                )
+                time.sleep(exc.wait_time)
 
             except Exception as exc:
                 logger.error(f"❌ Form error team {team_id}: {exc}")
@@ -282,12 +278,8 @@ def process_standings_batch(self):
 
         processed         = 0
         processed_leagues = set()
-        rate_limited      = False
 
         for league_id, season in list(leagues_to_process)[:STANDINGS_BATCH_SIZE]:
-            if rate_limited:
-                break
-
             try:
                 from football.tasks import process_single_league_standings
 
@@ -299,9 +291,12 @@ def process_standings_batch(self):
                     processed_leagues.add((league_id, season))
                     processed += 1
 
-            except RateLimitExceeded:
-                logger.warning("⚠️ Rate limit hit, stopping standings batch")
-                rate_limited = True
+            except RateLimitExceeded as exc:
+                logger.warning(
+                    f"⚠️ Rate limit hit standings league {league_id}, "
+                    f"sleeping {exc.wait_time:.2f}s then continuing"
+                )
+                time.sleep(exc.wait_time)
 
             except Exception as exc:
                 logger.error(

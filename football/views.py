@@ -112,18 +112,35 @@ def _serialize_advanced_stats(a):
         'away_away_losses_last_5':      a.away_away_losses_last_5,
     }
 
+def _serialize_fixture_card(f):
+    return {
+        'id':             f.id,
+        'slug':           f.slug,
+        'date':           f.date,
+        'home_team_name': f.home_team.name,
+        'home_team_logo': f.home_team.logo,
+        'home_team_id':   f.home_team.id,
+        'away_team_name': f.away_team.name,
+        'away_team_logo': f.away_team.logo,
+    }
+
+
 def home(request):
-    today              = datetime.today().date()
-    selected_date      = request.GET.get('date', today.strftime("%Y-%m-%d"))
-    selected_league_id = request.GET.get('league')
-    days_ahead         = 7 if request.user.is_staff else 5
+    today         = datetime.today().date()
+    selected_date = request.GET.get('date', today.strftime("%Y-%m-%d"))
+    days_ahead    = 7 if request.user.is_staff else 5
 
     try:
         datetime.strptime(selected_date, '%Y-%m-%d')
     except ValueError:
         selected_date = today.strftime("%Y-%m-%d")
 
-    # Date picker never changes for a given today — safe to compute once
+    # Parse league filter once, up front
+    try:
+        selected_league_id = int(request.GET.get('league') or 0) or None
+    except (ValueError, TypeError):
+        selected_league_id = None
+
     dates = []
     for i in range(days_ahead):
         d = today + timedelta(days=i)
@@ -136,32 +153,55 @@ def home(request):
             "label":    d.strftime("%A, %d %b %Y"),
         })
 
-    # ── Sidebar cache (date-only key — shared across all league filters) ──
     sidebar_cache_key = f'sidebar_{selected_date}'
-    sidebar_cached    = cache.get(sidebar_cache_key)
+    cache_key         = f'home_{selected_date}_{selected_league_id or "all"}'
 
-    if sidebar_cached:
-        countries_data = sidebar_cached['countries']
-        total_fixtures = sidebar_cached['total_fixtures']
-    else:
-        fixtures_for_sidebar = Fixture.objects.filter(
-            date__date=selected_date
-        ).select_related('league', 'league__country')
+    sidebar_cached = cache.get(sidebar_cache_key)
+    main_cached    = cache.get(cache_key)
 
+    # ── Both cached: fastest path, zero DB hits ───────────────────────────
+    if sidebar_cached and main_cached:
+        context = {
+            'dates':                 dates,
+            'selected_date':         selected_date,
+            'selected_league_id':    selected_league_id,
+            'countries':             sidebar_cached['countries'],
+            'total_fixtures':        sidebar_cached['total_fixtures'],
+            'leagues_with_fixtures': main_cached['leagues_with_fixtures'],
+            'display_mode':          main_cached['display_mode'],
+        }
+        if request.headers.get('HX-Request'):
+            return render(request, 'football/partials/home_htmx.html', context)
+        return render(request, 'football/home.html', context)
+
+    # ── Base queryset — only fields the templates actually use ─────────────
+    base_qs = (
+        Fixture.objects
+        .filter(date__date=selected_date)
+        .select_related('home_team', 'away_team', 'league', 'league__country')
+        .order_by('league__priority', 'league__name', 'date')
+    )
+
+    # ── Fetch fixtures ─────────────────────────────────────────────────────
+    if not sidebar_cached:
+        # Need ALL fixtures to build the sidebar — one query covers both
+        all_fixtures = list(base_qs)
+
+        # Build sidebar from the already-loaded set
         countries_dict = defaultdict(lambda: {'leagues': {}, 'total_fixtures': 0})
-        for fixture in fixtures_for_sidebar:
+        for fixture in all_fixtures:
             country_name = fixture.league.country.name
-            league_id    = fixture.league.id
-            if league_id not in countries_dict[country_name]['leagues']:
-                countries_dict[country_name]['leagues'][league_id] = {
-                    'id':          league_id,
+            lg_id        = fixture.league.id
+            if lg_id not in countries_dict[country_name]['leagues']:
+                countries_dict[country_name]['leagues'][lg_id] = {
+                    'id':          lg_id,
                     'name':        fixture.league.name,
                     'logo':        fixture.league.logo,
-                    'is_priority': fixture.league.is_priority,
+                    'is_priority': fixture.league.priority <= 20,
                     'priority':    fixture.league.priority,
-                    'count':       0
+                    'count':       0,
                 }
-            countries_dict[country_name]['leagues'][league_id]['count'] += 1
+            countries_dict[country_name]['leagues'][lg_id]['count'] += 1
             countries_dict[country_name]['total_fixtures'] += 1
 
         countries_data = []
@@ -174,7 +214,7 @@ def home(request):
             countries_data.append({
                 'name':           country_name,
                 'total_fixtures': country_info['total_fixtures'],
-                'leagues':        leagues_list
+                'leagues':        leagues_list,
             })
 
         total_fixtures = sum(c['total_fixtures'] for c in countries_data)
@@ -183,58 +223,36 @@ def home(request):
             'total_fixtures': total_fixtures,
         }, timeout=_24H)
 
-    # ── Main content cache (date + league filter) ─────────────────────────
-    cache_key = f'home_{selected_date}_{selected_league_id or "all"}'
-    cached    = cache.get(cache_key)
-
-    if cached:
-        context = {
-            'dates':                dates,
-            'selected_date':        selected_date,
-            'selected_league_id':   selected_league_id,
-            'countries':            countries_data,
-            'total_fixtures':       total_fixtures,
-            'leagues_with_fixtures':cached['leagues_with_fixtures'],
-            'display_mode':         cached['display_mode'],
-        }
-        if request.headers.get('HX-Request'):
-            return render(request, 'football/partials/home_htmx.html', context)
-        return render(request, 'football/home.html', context)
-
-    # ── Cache miss: build main content ────────────────────────────────────
-    fixtures_query = Fixture.objects.filter(
-        date__date=selected_date
-    ).select_related('home_team', 'away_team', 'league', 'league__country')
-
-    priority_league_id_set = set()
-
-    if selected_league_id:
-        try:
-            selected_league_id = int(selected_league_id)
-            fixtures     = fixtures_query.filter(league_id=selected_league_id).order_by('date')[:100]
-            display_mode = 'league_filter'
-        except (ValueError, TypeError):
-            fixtures     = fixtures_query.order_by('league__name', 'date')[:100]
-            display_mode = 'alphabetical_fallback'
+        # Narrow to league filter in Python — no extra DB hit
+        if selected_league_id:
+            all_fixtures = [f for f in all_fixtures if f.league_id == selected_league_id]
     else:
-        priority_league_id_set = set(
-            League.objects.filter(priority__lte=20).values_list('id', flat=True)
-        )
+        countries_data = sidebar_cached['countries']
+        total_fixtures = sidebar_cached['total_fixtures']
 
-        priority_fixtures = fixtures_query.filter(
-            league_id__in=priority_league_id_set
-        ).order_by('league__priority', 'league__name', 'date')[:100]
-
-        priority_fixtures_list = list(priority_fixtures)
-        if priority_fixtures_list:
-            extra_fixtures = fixtures_query.exclude(
-                league_id__in=priority_league_id_set
-            ).order_by('league__name', 'date')[:375]
-            fixtures     = priority_fixtures_list + list(extra_fixtures)
-            display_mode = 'priority_leagues'
+        # Sidebar already cached — fetch only what main content needs
+        if selected_league_id:
+            all_fixtures = list(base_qs.filter(league_id=selected_league_id)[:100])
         else:
-            fixtures     = fixtures_query.order_by('league__name', 'date')[:100]
-            display_mode = 'alphabetical_fallback'
+            all_fixtures = list(base_qs[:100])
+
+    # ── Build main content from fixtures ──────────────────────────────────
+    if selected_league_id:
+        fixtures     = all_fixtures[:100]
+        display_mode = 'league_filter'
+        priority_league_id_set = set()
+    else:
+        priority_list = [f for f in all_fixtures if f.league.priority <= 20][:100]
+        if priority_list:
+            # Priority leagues are playing — show only them, skip non-priority noise
+            fixtures               = priority_list
+            display_mode           = 'priority_leagues'
+            priority_league_id_set = {f.league_id for f in fixtures}
+        else:
+            # Quiet day — no priority fixtures, fall back to whatever is available
+            fixtures               = all_fixtures[:100]
+            display_mode           = 'alphabetical_fallback'
+            priority_league_id_set = set()
 
     fixtures_by_league = defaultdict(list)
     for fixture in fixtures:
@@ -251,10 +269,7 @@ def home(request):
         )[:15]
         sorted_leagues = priority_sorted + extra_sorted
     else:
-        sorted_leagues = sorted(
-            fixtures_by_league.items(),
-            key=lambda x: x[0].name
-        )
+        sorted_leagues = sorted(fixtures_by_league.items(), key=lambda x: x[0].name)
 
     leagues_with_fixtures = []
     for league, league_fixtures in sorted_leagues:
@@ -263,8 +278,8 @@ def home(request):
             'league_name': league.name,
             'league_logo': league.logo,
             'country':     league.country.name,
-            'fixtures':    league_fixtures,
-            'is_priority': league.is_priority,
+            'is_priority': league.priority <= 20,
+            'fixtures':    [_serialize_fixture_card(f) for f in league_fixtures],
         })
 
     cache.set(cache_key, {

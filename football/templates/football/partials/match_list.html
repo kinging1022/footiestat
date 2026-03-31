@@ -19,21 +19,21 @@
         </div>
         <div class="match-teams">
           <div class="team home">
-            {% if fixture.home_team.logo %}
-            <img src="{{ fixture.home_team.logo }}" alt="{{ fixture.home_team.name }}" class="team-logo">
+            {% if fixture.home_team_logo %}
+            <img src="{{ fixture.home_team_logo }}" alt="{{ fixture.home_team_name }}" class="team-logo">
             {% else %}
             <div class="team-logo-placeholder"></div>
             {% endif %}
-            <span class="team-name">{{ fixture.home_team.name }}</span>
+            <span class="team-name">{{ fixture.home_team_name }}</span>
           </div>
           <span class="vs-divider">VS</span>
           <div class="team away">
-            {% if fixture.away_team.logo %}
-            <img src="{{ fixture.away_team.logo }}" alt="{{ fixture.away_team.name }}" class="team-logo">
+            {% if fixture.away_team_logo %}
+            <img src="{{ fixture.away_team_logo }}" alt="{{ fixture.away_team_name }}" class="team-logo">
             {% else %}
             <div class="team-logo-placeholder"></div>
             {% endif %}
-            <span class="team-name">{{ fixture.away_team.name }}</span>
+            <span class="team-name">{{ fixture.away_team_name }}</span>
           </div>
         </div>
         <div class="match-footer">
@@ -42,7 +42,7 @@
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            <span class="view-number">{% if fixture.home_team.id|divisibleby:7 %}1,243{% elif fixture.home_team.id|divisibleby:5 %}2,418{% elif fixture.home_team.id|divisibleby:11 %}3,071{% elif fixture.home_team.id|divisibleby:3 %}876{% elif fixture.home_team.id|divisibleby:2 %}1,652{% else %}934{% endif %}</span>
+            <span class="view-number">{% if fixture.home_team_id|divisibleby:7 %}1,243{% elif fixture.home_team_id|divisibleby:5 %}2,418{% elif fixture.home_team_id|divisibleby:11 %}3,071{% elif fixture.home_team_id|divisibleby:3 %}876{% elif fixture.home_team_id|divisibleby:2 %}1,652{% else %}934{% endif %}</span>
             <span class="view-label">viewed</span>
           </div>
           <a href="{% url 'fixture_stats' fixture.id fixture.slug %}" class="stats-btn-prominent">

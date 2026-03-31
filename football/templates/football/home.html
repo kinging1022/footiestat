@@ -240,6 +240,13 @@
     sidebarOverlay.classList.remove('visible');
     sidebarTrigger.setAttribute('aria-expanded', 'false');
     document.body.style.overflow = '';
+    // Prevent the cursor landing on a date pill (sidebar was covering it)
+    // from triggering a hover highlight immediately after close.
+    const dateContainer = document.querySelector('.date-container');
+    if (dateContainer) {
+      dateContainer.style.pointerEvents = 'none';
+      setTimeout(() => { dateContainer.style.pointerEvents = ''; }, 300);
+    }
   }
 
   sidebarTrigger.addEventListener('click', openSidebar);

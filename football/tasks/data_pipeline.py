@@ -595,11 +595,13 @@ def process_detailed_stats_batch(self):
         processed     = 0
         failed        = 0
         no_fixture    = 0
-        rate_limited  = False
         no_stats_ever = set()  # past matches confirmed to never have stats
+        batch_start   = time.time()
 
         for parent_id, match_id, parsed_date, score_details in to_process:
-            if rate_limited:
+            # Safety cap: stop before the 5-min lock expires
+            if time.time() - batch_start > 270:
+                logger.info("⏱ Batch time limit reached, stopping early")
                 break
 
             try:
@@ -630,12 +632,16 @@ def process_detailed_stats_batch(self):
                     failed += 1
 
             except RateLimitExceeded as exc:
+                # Sleep until the window clears, then continue.
+                # The old "rate_limited = True / break" caused the entire
+                # 5-min batch to abort after just 7 items whenever concurrent
+                # tasks (h2h, form, standings) had already filled the 7/sec
+                # window. Now we pause briefly and keep going.
                 logger.warning(
-                    f"⚠️ Rate limit hit processing match {match_id}, "
-                    f"stopping batch (wait {exc.wait_time:.1f}s). "
-                    f"Processed {processed} so far."
+                    f"⚠️ Rate limit hit match {match_id}, "
+                    f"sleeping {exc.wait_time:.2f}s then continuing"
                 )
-                rate_limited = True
+                time.sleep(exc.wait_time)
 
             except Exception as exc:
                 logger.error(

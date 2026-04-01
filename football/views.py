@@ -746,8 +746,16 @@ def fixture_deep_stats(request, match_id):
             'fixture__home_team',
             'fixture__away_team',
         ).get(match_id=match_id)
-        has_stats = True
+        has_stats = stats.has_data
     except FixtureStatistics.DoesNotExist:
+        return render(request, 'football/fixture_deep_stats.html', {
+            'has_stats': False,
+            'fixture':   None,
+            'stats':     None,
+            'insights':  None,
+        })
+
+    if not has_stats:
         return render(request, 'football/fixture_deep_stats.html', {
             'has_stats': False,
             'fixture':   None,

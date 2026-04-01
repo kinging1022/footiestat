@@ -588,11 +588,10 @@ def process_detailed_stats_batch(self):
             f"{len(to_process)} to process now"
         )
 
-        processed     = 0
-        failed        = 0
-        no_fixture    = 0
-        no_stats_ever = set()  # past matches confirmed to never have stats
-        batch_start   = time.time()
+        processed   = 0
+        failed      = 0
+        no_fixture  = 0
+        batch_start = time.time()
 
         for parent_id, match_id, parsed_date, score_details in to_process:
             # Safety cap: stop before the 5-min lock expires
@@ -615,24 +614,18 @@ def process_detailed_stats_batch(self):
 
                 elif result.get('status') == 'no_fixture':
                     # Historical match not in our Fixture table — expected
-                    # These are past matches from form JSON, never ingested
                     no_fixture += 1
-                    no_stats_ever.add(match_id)
 
                 elif result.get('status') in ['no_data', 'invalid_data']:
-                    # API returned nothing — will never have stats
-                    no_stats_ever.add(match_id)
+                    # Sentinel row created in process_single_fixture_stats —
+                    # match_id now exists in FixtureStatistics with has_data=False
+                    # so it will be excluded from future runs automatically
                     failed += 1
 
                 else:
                     failed += 1
 
             except RateLimitExceeded as exc:
-                # Sleep until the window clears, then continue.
-                # The old "rate_limited = True / break" caused the entire
-                # 5-min batch to abort after just 7 items whenever concurrent
-                # tasks (h2h, form, standings) had already filled the 7/sec
-                # window. Now we pause briefly and keep going.
                 logger.warning(
                     f"⚠️ Rate limit hit match {match_id}, "
                     f"sleeping {exc.wait_time:.2f}s then continuing"
@@ -702,11 +695,7 @@ def process_detailed_stats_batch(self):
                     ).values_list('match_id', flat=True)
                 )
 
-                effectively_done = existing_in_db | (
-                    all_needed_ids & no_stats_ever
-                )
-
-                if len(effectively_done) >= len(all_needed_ids):
+                if len(existing_in_db) >= len(all_needed_ids):
                     ingestion.needs_detailed_stats        = False
                     ingestion.detailed_stats_processed_at = timezone.now()
                     ingestion.save(update_fields=[
@@ -717,14 +706,12 @@ def process_detailed_stats_batch(self):
                     ingestion.check_and_mark_complete()
                     logger.info(
                         f"✅ Fixture {ingestion.fixture_id} fully complete "
-                        f"({len(existing_in_db)} with stats, "
-                        f"{len(all_needed_ids & no_stats_ever)} no stats ever, "
-                        f"total {len(all_needed_ids)} needed)"
+                        f"({len(existing_in_db)}/{len(all_needed_ids)} resolved)"
                     )
                 else:
                     logger.info(
                         f"⏳ Fixture {ingestion.fixture_id} waiting: "
-                        f"{len(effectively_done)}/{len(all_needed_ids)} resolved"
+                        f"{len(existing_in_db)}/{len(all_needed_ids)} resolved"
                     )
 
             except Exception as e:

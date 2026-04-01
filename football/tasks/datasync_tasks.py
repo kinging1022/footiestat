@@ -998,7 +998,11 @@ def process_single_fixture_stats(
     # ── Fetch stats for the PAST match, not the parent ───────────────────
     stats_data = get_match_stats(match_fixture_id)
     if not stats_data or 'response' not in stats_data or not stats_data['response']:
-        logger.warning(f"⚠️ No statistics data for fixture {match_fixture_id}")
+        logger.warning(f"⚠️ No statistics data for fixture {match_fixture_id} — creating sentinel")
+        FixtureStatistics.objects.update_or_create(
+            match_id=match_fixture_id,
+            defaults={'fixture': parent_fixture, 'date': date, 'has_data': False}
+        )
         return {"status": "no_data", "fixture_id": match_fixture_id}
 
     teams_stats = stats_data['response']
@@ -1006,7 +1010,11 @@ def process_single_fixture_stats(
     if len(teams_stats) != 2:
         logger.warning(
             f"⚠️ Expected 2 teams, got {len(teams_stats)} "
-            f"for fixture {match_fixture_id}"
+            f"for fixture {match_fixture_id} — creating sentinel"
+        )
+        FixtureStatistics.objects.update_or_create(
+            match_id=match_fixture_id,
+            defaults={'fixture': parent_fixture, 'date': date, 'has_data': False}
         )
         return {"status": "invalid_data", "fixture_id": match_fixture_id}
 
@@ -1074,6 +1082,7 @@ def process_single_fixture_stats(
             defaults={
                 'fixture':               parent_fixture,  # FK to parent
                 'date':                  date,
+                'has_data':              True,
                 'home_fulltime_goals':   home_fulltime,
                 'away_fulltime_goals':   away_fulltime,
                 'home_half_time_goals':  home_halftime,

@@ -1,5 +1,5 @@
 from django.db import models
-from django.shortcuts import render
+
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -467,9 +467,13 @@ class FixtureStatistics(models.Model):
     home_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
     away_penalty_goals = models.PositiveSmallIntegerField(null=True, blank=True)
 
+    # False = sentinel row (API returned no data) — all stat fields will be null.
+    # The pipeline uses this to permanently skip matches it already tried.
+    has_data = models.BooleanField(default=True)
+
     # HOME TEAM STATISTICS
-    home_team_id = models.PositiveIntegerField()
-    home_team_name = models.CharField(max_length=100)
+    home_team_id = models.PositiveIntegerField(null=True, blank=True)
+    home_team_name = models.CharField(max_length=100, null=True, blank=True)
 
     home_shots_on_goal = models.PositiveSmallIntegerField(null=True, blank=True)
     home_shots_off_goal = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -495,8 +499,8 @@ class FixtureStatistics(models.Model):
     home_goals_prevented = models.SmallIntegerField(null=True, blank=True)
 
     # AWAY TEAM STATISTICS
-    away_team_id = models.PositiveIntegerField()
-    away_team_name = models.CharField(max_length=100)
+    away_team_id = models.PositiveIntegerField(null=True, blank=True)
+    away_team_name = models.CharField(max_length=100, null=True, blank=True)
 
     away_shots_on_goal = models.PositiveSmallIntegerField(null=True, blank=True)
     away_shots_off_goal = models.PositiveSmallIntegerField(null=True, blank=True)

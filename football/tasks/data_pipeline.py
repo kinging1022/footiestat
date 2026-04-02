@@ -750,78 +750,75 @@ def process_detailed_stats_batch(self):
 @shared_task(bind=True, max_retries=3)
 def refresh_today_standings(self):
     """
-    Refresh standings for every league that had fixtures yesterday.
-    Runs once daily at ~1 AM, after all matches from the previous day are over.
-    Mirrors the pattern of ingest_next_day_fixtures.
+    After yesterday's matches finish, mark those fixtures' standings as stale
+    so process_standings_batch re-fetches them incrementally.
 
-    Fixtures already exist in the DB before they're played, so no status
-    filter is needed — any fixture scheduled for that date means the league
-    needs its table refreshed once the day is done.
+    No direct API calls here — avoids rate limit bursts. The batch system
+    handles the actual fetching spread across its normal windows.
 
-    Cache: standings_{league_id}_{season} keys are deleted before calling
-    the helper so the 24-hour cache TTL never blocks this nightly refresh.
+    cleanup_old_fixtures must run AFTER the batch has had enough time to
+    process these records (see schedule note below).
+
     Crontab: 0 1 * * *  (1 AM daily)
+    Cleanup must be scheduled at 4 AM or later to give the batch time to finish.
     """
     try:
         yesterday = (timezone.now() - timedelta(days=1)).date()
 
         league_pairs = list(
             Fixture.objects.filter(date__date=yesterday)
-            .select_related('league')
             .values_list('league__id', 'league__season')
             .distinct()
         )
 
         if not league_pairs:
             logger.info(f"📭 refresh_today_standings: no fixtures on {yesterday}")
-            return {"status": "no_work", "date": yesterday.isoformat(), "processed": 0}
+            return {"status": "no_work", "date": yesterday.isoformat(), "marked": 0}
+
+        league_ids = [lid for lid, _ in league_pairs]
 
         logger.info(
-            f"🔄 refresh_today_standings: refreshing {len(league_pairs)} leagues "
-            f"for {yesterday}"
+            f"🔄 refresh_today_standings: {len(league_pairs)} leagues played "
+            f"{yesterday} — clearing cache and queuing standings refresh"
         )
 
-        # Delete cache keys so the helper always hits the API fresh
+        # Clear standings cache so process_standings_batch always hits the API fresh
         for league_id, season in league_pairs:
             cache.delete(f"standings_{league_id}_{season}")
 
-        from football.tasks import process_single_league_standings
+        # Bust fixture_stats page cache for yesterday's fixtures so the next
+        # visit serves fresh standings after the overnight refresh
+        fixture_ids = list(
+            Fixture.objects.filter(
+                date__date=yesterday,
+                league__id__in=league_ids,
+            ).values_list('id', flat=True)
+        )
+        for fid in fixture_ids:
+            cache.delete(f'fixture_stats_{fid}')
 
-        processed    = 0
-        rate_limited = False
-
-        for league_id, season in league_pairs:
-            if rate_limited:
-                break
-
-            try:
-                result = process_single_league_standings(league_id, season)
-
-                if result.get('status') in ('success', 'cached', 'no_data', 'no_valid_data'):
-                    processed += 1
-
-            except RateLimitExceeded as exc:
-                logger.warning(
-                    f"⚠️ Rate limit hit refreshing standings for league {league_id}"
-                )
-                rate_limited = True
-
-            except Exception as exc:
-                logger.error(
-                    f"❌ Standings refresh error league {league_id} "
-                    f"season {season}: {exc}"
-                )
+        # Reset needs_standings on yesterday's fixture ingestion records so
+        # process_standings_batch picks them up before cleanup_old_fixtures (4 AM)
+        # deletes them. standings_retry_count reset gives previously-failed
+        # leagues another attempt.
+        marked = FixtureIngestion.objects.filter(
+            fixture__id__in=fixture_ids,
+            needs_standings=False,
+        ).update(
+            needs_standings=True,
+            standings_retry_count=0,
+        )
 
         logger.info(
-            f"✅ refresh_today_standings: {processed}/{len(league_pairs)} leagues "
-            f"updated for {yesterday}"
+            f"✅ refresh_today_standings: busted cache for {len(fixture_ids)} fixtures, "
+            f"marked {marked} for standings re-fetch across {len(league_pairs)} leagues"
         )
 
         return {
-            "status":    "success",
-            "date":      yesterday.isoformat(),
-            "processed": processed,
-            "total":     len(league_pairs),
+            "status":  "success",
+            "date":    yesterday.isoformat(),
+            "leagues": len(league_pairs),
+            "marked":  marked,
         }
 
     except Exception as exc:

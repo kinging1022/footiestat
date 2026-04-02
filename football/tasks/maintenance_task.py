@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.utils import timezone
+from django.core.cache import cache
 from datetime import timedelta
 import logging
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 def cleanup_old_fixtures(self):
     """
     Delete fixtures from yesterday (already passed).
-    Runs daily at 3 AM.
+    Runs daily at 6 PM.
     
     Logic:
     - Today is Day 0
@@ -44,9 +45,13 @@ def cleanup_old_fixtures(self):
                 'message': 'No fixtures found'
             }
         
-        # Get fixture IDs before deletion (for logging)
+        # Get fixture IDs before deletion (for logging + cache bust)
         deleted_ids = list(old_fixtures.values_list('id', flat=True))
-        
+
+        # Bust fixture_stats page cache before deleting so stale entries don't linger
+        for fid in deleted_ids:
+            cache.delete(f'fixture_stats_{fid}')
+
         # Delete fixtures (cascade will delete FixtureIngestion, H2H, Form, etc.)
         old_fixtures.delete()
         

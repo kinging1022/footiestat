@@ -174,6 +174,7 @@ if not DEBUG:
                 "endpoint_url": os.getenv('R2_ENDPOINT_URL'),
                 "file_overwrite": False,
                 "querystring_auth": False,
+                "custom_domain": "media.footiestat.com",
             },
         },
         "staticfiles": {

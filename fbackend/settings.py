@@ -164,14 +164,23 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Media storage — Cloudflare R2
 if not DEBUG:
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    AWS_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = os.getenv('R2_BUCKET_NAME')
-    AWS_S3_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL')
-    AWS_S3_FILE_OVERWRITE = False
-    AWS_QUERYSTRING_AUTH = False 
-    MEDIA_URL = os.getenv('R2_PUBLIC_URL')
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "access_key": os.getenv('R2_ACCESS_KEY_ID'),
+                "secret_key": os.getenv('R2_SECRET_ACCESS_KEY'),
+                "bucket_name": os.getenv('R2_BUCKET_NAME'),
+                "endpoint_url": os.getenv('R2_ENDPOINT_URL'),
+                "file_overwrite": False,
+                "querystring_auth": False,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+    MEDIA_URL = os.getenv('R2_PUBLIC_URL') + '/'
 else:
     MEDIA_URL = '/media/'
 

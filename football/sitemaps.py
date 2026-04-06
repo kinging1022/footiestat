@@ -2,6 +2,7 @@ from django.contrib.sitemaps import Sitemap
 from django.urls import reverse
 from datetime import date, timedelta
 
+
 from football.models import Fixture
 
 
@@ -27,3 +28,6 @@ class FixtureSitemap(Sitemap):
             date__date__gte=window_start,
             date__date__lte=window_end,
         ).select_related('home_team', 'away_team', 'league').order_by('-date')
+
+    def location(self, fixture):
+        return reverse('fixture_stats', args=[fixture.id, fixture.slug or 'match'])

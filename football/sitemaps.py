@@ -26,11 +26,4 @@ class FixtureSitemap(Sitemap):
         return Fixture.objects.filter(
             date__date__gte=window_start,
             date__date__lte=window_end,
-            slug__isnull=False,
         ).select_related('home_team', 'away_team', 'league').order_by('-date')
-
-    def location(self, fixture):
-        return reverse('fixture_stats', args=[fixture.id, fixture.slug])
-
-    def lastmod(self, fixture):
-        return fixture.date.date()

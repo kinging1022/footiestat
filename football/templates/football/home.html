@@ -711,11 +711,22 @@
     showSkeleton();
     let url = `/?date=${date}`;
     if (leagueId) url += `&league=${leagueId}`;
+    history.pushState({date, leagueId: leagueId || null}, '', url);
     htmx.ajax('GET', url, {
       target: '#matches-area',
       swap: 'innerHTML'
     });
   }
+
+  window.addEventListener('popstate', function (e) {
+    const state = e.state;
+    if (state && state.date) {
+      showSkeleton();
+      let url = `/?date=${state.date}`;
+      if (state.leagueId) url += `&league=${state.leagueId}`;
+      htmx.ajax('GET', url, { target: '#matches-area', swap: 'innerHTML' });
+    }
+  });
 
   function updateCaption() {
     const pill    = document.querySelector('.date-pill.active');

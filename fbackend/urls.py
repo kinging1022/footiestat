@@ -9,6 +9,7 @@ from football.sitemaps import StaticSitemap, FixtureSitemap
 from blog.sitemaps import BlogHomeSitemap, ArticleSitemap
 
 
+
 sitemaps = {
     'static': StaticSitemap,
     'fixtures': FixtureSitemap,

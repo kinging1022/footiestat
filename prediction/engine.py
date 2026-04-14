@@ -165,19 +165,19 @@ class PredictionEngine:
 
         try:
             # Priority 1 — 1X2
-            if sub_score >= 72:
+            if sub_score >= 65:
                 home_odds = odds_data.get("match_winner", {}).get("home", 0)
                 away_odds = odds_data.get("match_winner", {}).get("away", 0)
                 home_pct = pred.get("home_win_pct", 0)
                 away_pct = pred.get("away_win_pct", 0)
-                if home_pct >= away_pct and 1.30 <= home_odds <= 2.20:
+                if home_pct >= away_pct and 1.25 <= home_odds <= 2.50:
                     return {
                         "market": "1X2",
                         "pick": "Home Win",
                         "odds": home_odds,
                         "no_double_chance": False,
                     }
-                if away_pct > home_pct and 1.30 <= away_odds <= 2.20:
+                if away_pct > home_pct and 1.25 <= away_odds <= 2.50:
                     return {
                         "market": "1X2",
                         "pick": "Away Win",
@@ -187,8 +187,8 @@ class PredictionEngine:
 
             # Priority 2 — BTTS Yes
             if (
-                adv.get("home_goals_scored_last_5", 0) >= 4
-                and adv.get("away_goals_scored_last_5", 0) >= 4
+                adv.get("home_goals_scored_last_5", 0) >= 3
+                and adv.get("away_goals_scored_last_5", 0) >= 3
             ):
                 btts_odds = odds_data.get("btts", {}).get("yes", 0)
                 if btts_odds and 1.30 <= btts_odds <= 3.50:
@@ -200,7 +200,7 @@ class PredictionEngine:
                     }
 
             # Priority 3 — Over 2.5
-            if avg_goals >= 2.8:
+            if avg_goals >= 2.5:
                 over_odds = odds_data.get("over_under", {}).get("over", 0)
                 if over_odds and 1.30 <= over_odds <= 3.50:
                     return {
@@ -211,7 +211,7 @@ class PredictionEngine:
                     }
 
             # Priority 4 — Double Chance
-            if 62 <= sub_score <= 71:
+            if 58 <= sub_score <= 64:
                 home_pct = pred.get("home_win_pct", 0)
                 away_pct = pred.get("away_win_pct", 0)
                 dc_odds = odds_data.get("double_chance", {})

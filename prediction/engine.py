@@ -277,16 +277,17 @@ class PredictionEngine:
             low_data = False
 
             # Signal 1 — Prediction % (25 pts max)
+            # Football win probabilities rarely exceed 65%; calibrate accordingly.
             if not pred:
                 s1 = 6
                 low_data = True
             else:
                 best_pct = max(home_pct, away_pct)
-                if best_pct >= 75:
+                if best_pct >= 55:
                     s1 = 25
-                elif best_pct >= 65:
+                elif best_pct >= 45:
                     s1 = 18
-                elif best_pct >= 55:
+                elif best_pct >= 35:
                     s1 = 12
                 else:
                     s1 = 6
@@ -382,7 +383,7 @@ class PredictionEngine:
             total = sub_score + s6
 
             # Mode thresholds
-            thresholds = {"small": 62, "10k": 62, "100k": 58, "monster": 58}
+            thresholds = {"small": 62, "10k": 62, "100k": 55, "monster": 55}
             threshold = thresholds.get(mode, 62)
             if total < threshold:
                 logger.debug(

@@ -133,6 +133,12 @@ Signal breakdown: {sb}"""
                 messages=[{"role": "user", "content": prompt}],
             )
             raw_text = message.content[0].text.strip()
+            # Strip markdown code fences if Claude wraps the JSON
+            if raw_text.startswith("```"):
+                raw_text = raw_text.split("```")[1]
+                if raw_text.startswith("json"):
+                    raw_text = raw_text[4:]
+                raw_text = raw_text.strip()
             parsed = json.loads(raw_text)
             verdict = parsed.get("verdict", "REJECT")
             reason = parsed.get("reason", "")
@@ -144,7 +150,7 @@ Signal breakdown: {sb}"""
 
         except (json.JSONDecodeError, KeyError, IndexError, ValueError) as exc:
             logger.warning(
-                "Claude response parse error for fixture %s: %s", fixture_id, exc
+                f"Claude response parse error for fixture {fixture_id}: {exc} | raw={raw_text!r}"
             )
             verdict = "REJECT"
             reason = "validation error"

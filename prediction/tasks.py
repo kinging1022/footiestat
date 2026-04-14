@@ -142,7 +142,7 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
         # ----------------------------------------------------------------
         # Monster accas
         # ----------------------------------------------------------------
-        if output_type in ("all", "big"):
+        if output_type in ("big",):
 
             cached_10k = REDIS_CLIENT.get(CACHE_KEYS["10k"])
             cached_100k = REDIS_CLIENT.get(CACHE_KEYS["100k"])

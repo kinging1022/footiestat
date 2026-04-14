@@ -164,7 +164,18 @@ class PredictionEngine:
         adv = fixture.get("advanced_stats", {})
 
         try:
-            # Priority 1 — 1X2
+            # Priority 1 — Over 2.5 (high-scoring games first)
+            if avg_goals >= 3.0:
+                over_odds = odds_data.get("over_under", {}).get("over", 0)
+                if over_odds and 1.30 <= over_odds <= 2.50:
+                    return {
+                        "market": "Over 2.5",
+                        "pick": "Over 2.5 Goals",
+                        "odds": over_odds,
+                        "no_double_chance": False,
+                    }
+
+            # Priority 2 — 1X2 (clear favourite in balanced games)
             if sub_score >= 65:
                 home_odds = odds_data.get("match_winner", {}).get("home", 0)
                 away_odds = odds_data.get("match_winner", {}).get("away", 0)
@@ -185,10 +196,12 @@ class PredictionEngine:
                         "no_double_chance": False,
                     }
 
-            # Priority 2 — BTTS Yes
+            # Priority 3 — BTTS Yes (both teams must score AND have leaky defenses)
             if (
-                adv.get("home_goals_scored_last_5", 0) >= 3
+                adv.get("home_goals_scored_last_5", 0) >= 4
                 and adv.get("away_goals_scored_last_5", 0) >= 3
+                and adv.get("home_goals_conceded_last_5", 0) >= 2
+                and adv.get("away_goals_conceded_last_5", 0) >= 2
             ):
                 btts_odds = odds_data.get("btts", {}).get("yes", 0)
                 if btts_odds and 1.30 <= btts_odds <= 3.50:
@@ -199,7 +212,7 @@ class PredictionEngine:
                         "no_double_chance": False,
                     }
 
-            # Priority 3 — Over 2.5
+            # Priority 4 — Over 2.5 (moderate scoring, fallback)
             if avg_goals >= 2.5:
                 over_odds = odds_data.get("over_under", {}).get("over", 0)
                 if over_odds and 1.30 <= over_odds <= 3.50:
@@ -210,7 +223,7 @@ class PredictionEngine:
                         "no_double_chance": False,
                     }
 
-            # Priority 4 — Double Chance (fallback when 1X2 odds not in range)
+            # Priority 5 — Double Chance (fallback when 1X2 odds not in range)
             if sub_score >= 58:
                 home_pct = pred.get("home_win_pct", 0)
                 away_pct = pred.get("away_win_pct", 0)
@@ -229,7 +242,7 @@ class PredictionEngine:
                         "no_double_chance": True,
                     }
 
-            # Priority 5 — Asian Handicap fallback
+            # Priority 6 — Asian Handicap fallback
             home_rate = self._calc_home_away_rate(standings, "home")
             if home_rate >= 0.70:
                 home_odds = odds_data.get("match_winner", {}).get("home", 0)

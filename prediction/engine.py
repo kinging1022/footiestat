@@ -648,8 +648,6 @@ class PredictionEngine:
                     league_counts: dict[int, int] = {}
 
                     for candidate in candidates:
-                        if total_odds > target_max:
-                            break
                         if len(legs) >= max_legs:
                             break
                         lid = candidate["league_id"]
@@ -658,9 +656,14 @@ class PredictionEngine:
                         c_odds = candidate["selected_odds"]
                         if c_odds >= 2.00:
                             continue
-                        total_odds *= c_odds
+                        projected = total_odds * c_odds
+                        if projected > target_max:
+                            continue  # skip this leg, try one with lower odds
+                        total_odds = projected
                         legs.append(candidate)
                         league_counts[lid] = league_counts.get(lid, 0) + 1
+                        if total_odds >= target_min:
+                            break  # target reached, stop adding legs
 
                     n_leagues = len({l["league_id"] for l in legs})
                     if not (target_min <= total_odds <= target_max):

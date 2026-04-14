@@ -688,19 +688,19 @@ class PredictionEngine:
                     return None
 
             acca_10k = build_monster(
-                target_min=8000,
-                target_max=12000,
-                max_legs=20,
-                min_leagues=5,
-                min_confidence=62,
+                target_min=5000,
+                target_max=15000,
+                max_legs=30,
+                min_leagues=4,
+                min_confidence=60,
                 allow_double_chance=False,
             )
             acca_100k = build_monster(
-                target_min=80000,
-                target_max=120000,
-                max_legs=50,
-                min_leagues=8,
-                min_confidence=58,
+                target_min=50000,
+                target_max=200000,
+                max_legs=60,
+                min_leagues=6,
+                min_confidence=55,
                 allow_double_chance=False,
             )
 

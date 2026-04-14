@@ -31,7 +31,7 @@ BASE_API_URL = os.getenv('BASE_API_URL')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS','localhost,127.0.0.1').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
 API_KEY = os.getenv('API_KEY')
 
@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'football',
     'blog',
     'pages',
+    'prediction',
 
 
 
@@ -205,20 +206,34 @@ sentry_sdk.init(
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email configuration — replace with real SMTP credentials in production
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'FootieStat <noreply@footiestat.com>')
-CONTACT_EMAIL = os.getenv('CONTACT_EMAIL', EMAIL_HOST_USER)
+#EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+#EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+#EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+#EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+#EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+#EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+#DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'FootieStat <noreply@footiestat.com>')
+#CONTACT_EMAIL = os.getenv('CONTACT_EMAIL', EMAIL_HOST_USER)
 
-# Security settings
-SECURE_SSL_REDIRECT = True
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# Security settings — only enforce HTTPS in production
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Prediction app settings
+PREDICTION_MIN_FIXTURES = int(os.getenv("PREDICTION_MIN_FIXTURES", 15))
+PREDICTION_MIN_MONSTER_FIXTURES = int(os.getenv("PREDICTION_MIN_MONSTER_FIXTURES", 20))
+PREDICTION_MONSTER_DAYS_AHEAD = int(os.getenv("PREDICTION_MONSTER_DAYS_AHEAD", 7))
+PREDICTION_PRIORITY_THRESHOLD = int(os.getenv("PREDICTION_PRIORITY_THRESHOLD", 20))
+PREDICTION_CACHE_TTL_PREDICTIONS = int(os.getenv("PREDICTION_CACHE_TTL_PREDICTIONS", 14400))
+PREDICTION_CACHE_TTL_ODDS = int(os.getenv("PREDICTION_CACHE_TTL_ODDS", 7200))
+PREDICTION_CACHE_TTL_CLAUDE = int(os.getenv("PREDICTION_CACHE_TTL_CLAUDE", 21600))
+PREDICTION_CACHE_TTL_SMALL = int(os.getenv("PREDICTION_CACHE_TTL_SMALL", 10800))
+PREDICTION_CACHE_TTL_MONSTER = int(os.getenv("PREDICTION_CACHE_TTL_MONSTER", 21600))
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")

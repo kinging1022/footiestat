@@ -655,7 +655,7 @@ class PredictionEngine:
                         if league_counts.get(lid, 0) >= 3:
                             continue
                         c_odds = candidate["selected_odds"]
-                        if c_odds < 1.50 or c_odds > 4.00:
+                        if c_odds >= 2.00:
                             continue
                         total_odds *= c_odds
                         legs.append(candidate)

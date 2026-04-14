@@ -113,9 +113,9 @@ class Formatter:
             "━━━━━━━━━━━━━━━━━━",
         ]
         legs = acca.get("legs", [])
-        for leg in legs[:5]:
+        for i, leg in enumerate(legs, 1):
             lines.append(
-                f"[{leg.get('kickoff_date_short', '')}] "
+                f"{i}. [{leg.get('kickoff_date_short', '')}] "
                 f"{leg.get('home_team_name', '')} vs "
                 f"{leg.get('away_team_name', '')}"
             )
@@ -124,9 +124,6 @@ class Formatter:
                 f"Odds: {leg.get('selected_odds', 0):.2f} | "
                 f"Conf: {leg.get('adjusted_confidence', leg.get('confidence', 0))}"
             )
-        remaining = acca.get("n_legs", len(legs)) - 5
-        if remaining > 0:
-            lines.append(f"...and {remaining} more legs")
         lines.append("━━━━━━━━━━━━━━━━━━")
         lines.append(
             f"📅 {acca.get('start_date', '')} – {acca.get('end_date', '')}"

@@ -210,8 +210,8 @@ class PredictionEngine:
                         "no_double_chance": False,
                     }
 
-            # Priority 4 — Double Chance
-            if 58 <= sub_score <= 64:
+            # Priority 4 — Double Chance (fallback when 1X2 odds not in range)
+            if sub_score >= 58:
                 home_pct = pred.get("home_win_pct", 0)
                 away_pct = pred.get("away_win_pct", 0)
                 dc_odds = odds_data.get("double_chance", {})

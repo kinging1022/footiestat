@@ -17,11 +17,14 @@ logger = logging.getLogger(__name__)
 REDIS_CLIENT = redis.from_url(settings.CELERY_BROKER_URL, decode_responses=True)
 
 KEYS = {
-    "small_accas": "prediction:record:small_accas",
-    "best_acca":   "prediction:record:best_acca",
-    "acca_10k":    "prediction:record:acca_10k",
-    "acca_100k":   "prediction:record:acca_100k",
-    "pending":     "prediction:pending",
+    "small_accas":   "prediction:record:small_accas",
+    "best_acca":     "prediction:record:best_acca",
+    "acca_10k":      "prediction:record:acca_10k",
+    "acca_100k":     "prediction:record:acca_100k",
+    "acca_daily_100": "prediction:record:acca_daily_100",
+    "acca_daily_500": "prediction:record:acca_daily_500",
+    "acca_daily_1k":  "prediction:record:acca_daily_1k",
+    "pending":       "prediction:pending",
 }
 
 
@@ -82,10 +85,13 @@ class ResultTracker:
             now = datetime.utcnow().isoformat()
 
             product_map: dict[str, list[dict]] = {
-                "small_accas": accas.get("daily_accas") or [],
-                "best_acca": [accas["best_acca"]] if accas.get("best_acca") else [],
-                "acca_10k": [accas["acca_10k"]] if accas.get("acca_10k") else [],
-                "acca_100k": [accas["acca_100k"]] if accas.get("acca_100k") else [],
+                "small_accas":    accas.get("daily_accas") or [],
+                "best_acca":      [accas["best_acca"]]  if accas.get("best_acca")  else [],
+                "acca_10k":       [accas["acca_10k"]]   if accas.get("acca_10k")   else [],
+                "acca_100k":      [accas["acca_100k"]]  if accas.get("acca_100k")  else [],
+                "acca_daily_100": [accas["acca_100"]]   if accas.get("acca_100")   else [],
+                "acca_daily_500": [accas["acca_500"]]   if accas.get("acca_500")   else [],
+                "acca_daily_1k":  [accas["acca_1k"]]    if accas.get("acca_1k")    else [],
             }
 
             for product, acca_list in product_map.items():
@@ -232,7 +238,11 @@ class ResultTracker:
         """Return win/loss records for all products."""
         return {
             product: self._get_record(product)
-            for product in ["small_accas", "best_acca", "acca_10k", "acca_100k"]
+            for product in [
+                "small_accas", "best_acca",
+                "acca_10k", "acca_100k",
+                "acca_daily_100", "acca_daily_500", "acca_daily_1k",
+            ]
         }
 
     def get_weekly_summary(self) -> dict:

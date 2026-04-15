@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 REDIS_CLIENT = redis.from_url(settings.CELERY_BROKER_URL, decode_responses=True)
 
 CACHE_KEYS = {
-    "small": "prediction:cache:small:accas",
-    "10k":   "prediction:cache:monster:10k",
-    "100k":  "prediction:cache:monster:100k",
+    "small":         "prediction:cache:small:accas",
+    "daily_monster": "prediction:cache:daily:monster",
+    "10k":           "prediction:cache:monster:10k",
+    "100k":          "prediction:cache:monster:100k",
 }
 
 
@@ -79,11 +80,14 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
         if output_type in ("all", "best"):
 
             cached_small = REDIS_CLIENT.get(CACHE_KEYS["small"])
-            if cached_small:
-                logger.info("Serving small accas from cache")
-                small_result = json.loads(cached_small)
+            cached_dm    = REDIS_CLIENT.get(CACHE_KEYS["daily_monster"])
+
+            if cached_small and cached_dm:
+                logger.info("Serving small + daily monster accas from cache")
+                small_result         = json.loads(cached_small)
+                daily_monster_result = json.loads(cached_dm)
             else:
-                logger.info("Running small acca pipeline")
+                logger.info("Running small + daily monster pipeline")
                 start = time.time()
 
                 fixtures = db.get_todays_fixtures("small")
@@ -109,17 +113,24 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
                 validated = validator.validate_batch(scored)
                 logger.info(f"Validated: {len(validated)}")
 
-                small_result = engine.build_accas(validated, "small")
+                small_result         = engine.build_accas(validated, "small")
+                daily_monster_result = engine.build_accas(validated, "daily_monster")
 
                 REDIS_CLIENT.setex(
                     CACHE_KEYS["small"],
                     settings.PREDICTION_CACHE_TTL_SMALL,
                     json.dumps(small_result, default=str),
                 )
+                REDIS_CLIENT.setex(
+                    CACHE_KEYS["daily_monster"],
+                    settings.PREDICTION_CACHE_TTL_SMALL,
+                    json.dumps(daily_monster_result, default=str),
+                )
 
                 tracker.save_accas(small_result)
+                tracker.save_accas(daily_monster_result)
                 logger.info(
-                    "Small pipeline done in %.1fs", time.time() - start
+                    "Small + daily monster pipeline done in %.1fs", time.time() - start
                 )
 
             # Send to Telegram
@@ -138,6 +149,15 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
                     send_telegram(
                         formatter.format_best_acca(small_result["best_acca"])
                     )
+
+            # Daily monster — send whichever targets were built
+            if daily_monster_result.get("insufficient_daily_monster_fixtures"):
+                send_telegram(formatter.format_insufficient("daily monster accas"))
+            else:
+                for product, key in [("100", "acca_100"), ("500", "acca_500"), ("1k", "acca_1k")]:
+                    acca = daily_monster_result.get(key)
+                    if acca:
+                        send_telegram(formatter.format_daily_monster_acca(acca, product))
 
         # ----------------------------------------------------------------
         # Monster accas

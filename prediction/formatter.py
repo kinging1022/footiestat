@@ -142,6 +142,34 @@ class Formatter:
         )
         return "\n".join(lines)
 
+    def format_daily_monster_acca(self, acca: dict, product: str) -> str:
+        """Format a daily monster acca (100x / 500x / 1k) as a plain-text message."""
+        labels = {"100": "100X DAILY", "500": "500X DAILY", "1k": "1K DAILY"}
+        emojis = {"100": "🟡", "500": "🟠", "1k": "🔴"}
+        label = labels.get(product, f"{product.upper()} DAILY")
+        emoji = emojis.get(product, "🔴")
+        lines = [
+            f"{emoji} {label} ACCA — Total Odds: {acca.get('total_odds', 0):,.2f}",
+            "━━━━━━━━━━━━━━━━━━",
+        ]
+        for i, leg in enumerate(acca.get("legs", []), 1):
+            lines.append(
+                f"{i}. {leg.get('home_team_name', '')} vs "
+                f"{leg.get('away_team_name', '')}"
+            )
+            lines.append(
+                f"   {leg.get('selected_market', '')} | "
+                f"Odds: {leg.get('selected_odds', 0):.2f} | "
+                f"Conf: {leg.get('adjusted_confidence', leg.get('confidence', 0))}"
+            )
+        lines.append("━━━━━━━━━━━━━━━━━━")
+        lines.append(
+            f"🌍 {acca.get('n_leagues', 0)} leagues | "
+            f"Avg Conf: {acca.get('avg_confidence', 0)} | "
+            f"Legs: {acca.get('n_legs', len(acca.get('legs', [])))}"
+        )
+        return "\n".join(lines)
+
     def format_insufficient(self, product: str) -> str:
         """Return a message for when there are not enough qualifying fixtures."""
         return (

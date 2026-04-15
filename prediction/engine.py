@@ -458,11 +458,14 @@ class PredictionEngine:
         """
         Build accumulator bets from scored fixtures.
 
-        mode='small': up to 10 daily 3-5 leg accas targeting 4.50–5.50 odds.
-        mode='monster': builds a 10k and a 100k long-term accumulator.
+        mode='small':         up to 10 daily 3-5 leg accas targeting 4.50–5.50 odds.
+        mode='daily_monster': daily 100x / 500x / 1000x high-odds accas.
+        mode='monster':       long-term 10k and 100k accas.
         """
         if mode == "small":
             return self._build_small_accas(scored)
+        if mode == "daily_monster":
+            return self._build_daily_monster_accas(scored)
         return self._build_monster_accas(scored)
 
     # --- Small accas ---
@@ -490,6 +493,17 @@ class PredictionEngine:
 
             daily_accas: list[dict] = []
             used_ids: set[int] = set()
+            discard_counts: dict[str, int] = {
+                "too_few_legs": 0,
+                "no_priority_leg": 0,
+                "odds_out_of_range": 0,
+                "avg_conf_too_low": 0,
+            }
+
+            # Determine whether any priority fixtures exist at all so we can
+            # apply a graceful fallback on nights (e.g. CL/UEL) when every
+            # fixture is from a non-priority league.
+            any_priority_eligible = any(f.get("is_priority") for f in eligible)
 
             for _ in range(10):
                 candidates = [
@@ -526,11 +540,15 @@ class PredictionEngine:
                         break
 
                 if len(legs) < 3:
+                    discard_counts["too_few_legs"] += 1
                     continue
 
-                # Priority league check — every small acca needs at least one ⭐ anchor
+                # Priority league check — every small acca needs at least one ⭐ anchor.
+                # Fallback: when no priority fixtures are available at all (e.g. CL night),
+                # skip the anchor requirement so we can still produce accas.
                 has_priority_leg = any(leg["is_priority"] for leg in legs)
-                if not has_priority_leg:
+                if any_priority_eligible and not has_priority_leg:
+                    discard_counts["no_priority_leg"] += 1
                     logger.debug("Acca discarded — no priority league leg found")
                     continue
 
@@ -559,6 +577,7 @@ class PredictionEngine:
 
                 # Hard odds gate — no exceptions
                 if not 4.50 <= round(total_odds, 2) <= 5.50:
+                    discard_counts["odds_out_of_range"] += 1
                     logger.debug(
                         "Acca discarded — odds %.2f out of range", total_odds
                     )
@@ -566,6 +585,7 @@ class PredictionEngine:
 
                 avg_conf = sum(l["confidence"] for l in legs) / len(legs)
                 if avg_conf < 68:
+                    discard_counts["avg_conf_too_low"] += 1
                     logger.debug(
                         "build_accas(small): discarding acca — avg_conf %.1f < 68",
                         avg_conf,
@@ -580,6 +600,12 @@ class PredictionEngine:
                 })
                 for leg in legs:
                     used_ids.add(leg["fixture_id"])
+
+            if any(discard_counts.values()):
+                logger.info(
+                    "build_accas(small) discards — %s",
+                    " | ".join(f"{k}={v}" for k, v in discard_counts.items() if v),
+                )
 
             # Best acca is always different from ACCA #1
             best_acca = None
@@ -596,8 +622,11 @@ class PredictionEngine:
                     best_acca = daily_accas[0]
 
             if not daily_accas:
-                priority_available = any(f.get("is_priority") for f in eligible)
-                if not priority_available:
+                if not any_priority_eligible:
+                    logger.info(
+                        "build_accas(small): no priority league fixtures today"
+                        " — fallback was active but still no valid accas"
+                    )
                     return {
                         "daily_accas": [],
                         "best_acca": None,
@@ -617,6 +646,132 @@ class PredictionEngine:
                 "daily_accas": [],
                 "best_acca": None,
                 "insufficient_fixtures": True,
+            }
+
+    # --- Daily monster accas ---
+
+    def _build_daily_monster_accas(self, scored: list[dict]) -> dict:
+        """
+        Build daily high-odds accumulators targeting 100x, 500x and 1000x.
+
+        Uses today's scored fixtures (same pool as small mode).  Each target
+        is built independently; whichever ones can be assembled from the
+        available fixtures are returned — the others come back as None.
+        """
+        try:
+            def build_target(
+                candidates: list[dict],
+                target_min: float,
+                target_max: float,
+                max_legs: int,
+                min_leagues: int,
+                min_confidence: int,
+            ) -> dict | None:
+                """Build one daily-monster acca to the given target-odds range."""
+                try:
+                    eligible = [
+                        f for f in candidates
+                        if f.get("confidence", 0) >= min_confidence
+                        and f.get("selected_market") != "Double Chance"
+                        and 1.50 <= f.get("selected_odds", 0) <= 4.00
+                    ]
+                    # Prefer Over 2.5 / BTTS first, then confidence DESC
+                    eligible.sort(
+                        key=lambda f: (
+                            0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes")
+                            else 1,
+                            -f["confidence"],
+                        )
+                    )
+
+                    legs: list[dict] = []
+                    total_odds = 1.0
+                    league_counts: dict[int, int] = {}
+
+                    for candidate in eligible:
+                        if total_odds >= target_max:
+                            break
+                        if len(legs) >= max_legs:
+                            break
+                        lid = candidate["league_id"]
+                        # Max 2 fixtures from the same league (daily pool is smaller)
+                        if league_counts.get(lid, 0) >= 2:
+                            continue
+                        projected = total_odds * candidate["selected_odds"]
+                        # Allow 10 % overshoot buffer on target_max
+                        if projected > target_max * 1.10:
+                            continue
+                        legs.append(candidate)
+                        total_odds *= candidate["selected_odds"]
+                        league_counts[lid] = league_counts.get(lid, 0) + 1
+
+                    if not legs:
+                        return None
+                    if total_odds < target_min:
+                        return None
+                    n_leagues = len({l["league_id"] for l in legs})
+                    if n_leagues < min_leagues:
+                        return None
+
+                    return {
+                        "legs": legs,
+                        "total_odds": round(total_odds, 2),
+                        "avg_confidence": round(
+                            sum(l["confidence"] for l in legs) / len(legs), 1
+                        ),
+                        "n_legs": len(legs),
+                        "n_leagues": n_leagues,
+                    }
+                except Exception:
+                    logger.exception("build_target (daily_monster) inner failed")
+                    return None
+
+            # Shared pool — all three targets draw from the same daily fixtures;
+            # their very different target-odds ranges produce distinct selections.
+            pool = sorted(
+                [
+                    f for f in scored
+                    if f.get("selected_market") != "Double Chance"
+                ],
+                key=lambda f: (
+                    0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1,
+                    -f["confidence"],
+                ),
+            )
+
+            # Thresholds match the engine scoring gates:
+            #   100x  → confidence >= 65  (small-mode gate)
+            #   500x  → confidence >= 62  (10k monster gate)
+            #   1000x → confidence >= 60  (slightly relaxed for more legs)
+            acca_100 = build_target(pool,   80,   120, 12, 3, 65)
+            acca_500 = build_target(pool,  400,   600, 16, 4, 62)
+            acca_1k  = build_target(pool,  800,  1200, 18, 5, 60)
+
+            available = [a for a in [acca_100, acca_500, acca_1k] if a]
+            logger.info(
+                "build_accas(daily_monster): built %d/3 targets"
+                " (100x=%s 500x=%s 1k=%s) from %d fixtures",
+                len(available),
+                "yes" if acca_100 else "no",
+                "yes" if acca_500 else "no",
+                "yes" if acca_1k  else "no",
+                len(scored),
+            )
+
+            return {
+                "acca_100": acca_100,
+                "acca_500": acca_500,
+                "acca_1k": acca_1k,
+                "insufficient_daily_monster_fixtures": not available,
+            }
+
+        except Exception:
+            logger.exception("_build_daily_monster_accas failed")
+            return {
+                "acca_100": None,
+                "acca_500": None,
+                "acca_1k": None,
+                "insufficient_daily_monster_fixtures": True,
             }
 
     # --- Monster accas ---
@@ -706,7 +861,10 @@ class PredictionEngine:
                     logger.exception("build_monster inner failed")
                     return None
 
-            # Independent pools — 10k and 100k must not share legs
+            # Both accas draw from the same scored pool — they are separate bets
+            # with very different target-odds ranges so their leg selections will
+            # naturally diverge.  Enforcing strict pool independence was the main
+            # reason 100k could never be built (10k consumed too many fixtures).
             pool_10k = sorted(
                 [
                     f for f in scored
@@ -721,15 +879,11 @@ class PredictionEngine:
 
             acca_10k = build_monster(pool_10k, 8000, 12000, 20, 5, 62)
 
-            used_10k_ids = {
-                l["fixture_id"] for l in (acca_10k["legs"] if acca_10k else [])
-            }
             pool_100k = sorted(
                 [
                     f for f in scored
                     if f.get("confidence", 0) >= 58
                     and f.get("selected_market") != "Double Chance"
-                    and f["fixture_id"] not in used_10k_ids
                 ],
                 key=lambda f: (
                     0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1,

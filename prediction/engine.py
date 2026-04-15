@@ -139,7 +139,7 @@ class PredictionEngine:
     # Market selection
     # ------------------------------------------------------------------
 
-    def select_market(
+    def get_qualifying_markets(
         self,
         fixture: dict,
         standings: dict,
@@ -147,56 +147,42 @@ class PredictionEngine:
         sub_score: int,
         avg_goals: float,
         predictions: dict | None = None,
-    ) -> dict | None:
+    ) -> list[dict]:
         """
-        Choose the best betting market for a fixture.
+        Return ALL qualifying betting markets for a fixture.
 
-        Evaluates markets in priority order (1X2 → BTTS → Over 2.5 →
-        Double Chance → Asian Handicap).  Returns a dict describing the
-        selected market, or None if nothing qualifies.
+        Claude will choose the best one from this list during validation.
+        Each entry has: market, pick, odds, no_double_chance.
         """
         fid = fixture.get("fixture_id")
         odds_data = odds.get(fid, {}) if isinstance(odds, dict) else odds
         if not odds_data:
-            return None
+            return []
 
         pred = predictions.get(fid, {}) if predictions else {}
         adv = fixture.get("advanced_stats", {})
+        markets: list[dict] = []
 
         try:
-            # Priority 1 — Over 2.5 (high-scoring games first)
-            if avg_goals >= 3.0:
-                over_odds = odds_data.get("over_under", {}).get("over", 0)
-                if over_odds and 1.30 <= over_odds <= 2.50:
-                    return {
-                        "market": "Over 2.5",
-                        "pick": "Over 2.5 Goals",
-                        "odds": over_odds,
-                        "no_double_chance": False,
-                    }
+            home_pct = pred.get("home_win_pct", 0) or 0
+            away_pct = pred.get("away_win_pct", 0) or 0
 
-            # Priority 2 — 1X2 (clear favourite in balanced games)
+            # 1X2
             if sub_score >= 65:
                 home_odds = odds_data.get("match_winner", {}).get("home", 0)
                 away_odds = odds_data.get("match_winner", {}).get("away", 0)
-                home_pct = pred.get("home_win_pct", 0)
-                away_pct = pred.get("away_win_pct", 0)
                 if home_pct >= away_pct and 1.25 <= home_odds <= 2.50:
-                    return {
-                        "market": "1X2",
-                        "pick": "Home Win",
-                        "odds": home_odds,
-                        "no_double_chance": False,
-                    }
-                if away_pct > home_pct and 1.25 <= away_odds <= 2.50:
-                    return {
-                        "market": "1X2",
-                        "pick": "Away Win",
-                        "odds": away_odds,
-                        "no_double_chance": False,
-                    }
+                    markets.append({
+                        "market": "1X2", "pick": "Home Win",
+                        "odds": home_odds, "no_double_chance": False,
+                    })
+                elif away_pct > home_pct and 1.25 <= away_odds <= 2.50:
+                    markets.append({
+                        "market": "1X2", "pick": "Away Win",
+                        "odds": away_odds, "no_double_chance": False,
+                    })
 
-            # Priority 3 — BTTS Yes (both teams must score AND have leaky defenses)
+            # BTTS Yes — both teams must score AND both defenses leaky
             if (
                 adv.get("home_goals_scored_last_5", 0) >= 4
                 and adv.get("away_goals_scored_last_5", 0) >= 3
@@ -205,59 +191,49 @@ class PredictionEngine:
             ):
                 btts_odds = odds_data.get("btts", {}).get("yes", 0)
                 if btts_odds and 1.30 <= btts_odds <= 3.50:
-                    return {
-                        "market": "BTTS Yes",
-                        "pick": "Both Teams Score",
-                        "odds": btts_odds,
-                        "no_double_chance": False,
-                    }
+                    markets.append({
+                        "market": "BTTS Yes", "pick": "Both Teams Score",
+                        "odds": btts_odds, "no_double_chance": False,
+                    })
 
-            # Priority 4 — Over 2.5 (moderate scoring, fallback)
+            # Over 2.5
             if avg_goals >= 2.5:
                 over_odds = odds_data.get("over_under", {}).get("over", 0)
                 if over_odds and 1.30 <= over_odds <= 3.50:
-                    return {
-                        "market": "Over 2.5",
-                        "pick": "Over 2.5 Goals",
-                        "odds": over_odds,
-                        "no_double_chance": False,
-                    }
+                    markets.append({
+                        "market": "Over 2.5", "pick": "Over 2.5 Goals",
+                        "odds": over_odds, "no_double_chance": False,
+                    })
 
-            # Priority 5 — Double Chance (fallback when 1X2 odds not in range)
+            # Double Chance
             if sub_score >= 58:
-                home_pct = pred.get("home_win_pct", 0)
-                away_pct = pred.get("away_win_pct", 0)
                 dc_odds = odds_data.get("double_chance", {})
                 if home_pct >= away_pct:
                     dc = dc_odds.get("1X", 0)
-                    pick = "1X"
+                    dc_pick = "1X"
                 else:
                     dc = dc_odds.get("X2", 0)
-                    pick = "X2"
+                    dc_pick = "X2"
                 if dc and 1.20 <= dc <= 3.00:
-                    return {
-                        "market": "Double Chance",
-                        "pick": pick,
-                        "odds": dc,
-                        "no_double_chance": True,
-                    }
+                    markets.append({
+                        "market": "Double Chance", "pick": dc_pick,
+                        "odds": dc, "no_double_chance": True,
+                    })
 
-            # Priority 6 — Asian Handicap fallback
+            # Asian Handicap fallback
             home_rate = self._calc_home_away_rate(standings, "home")
             if home_rate >= 0.70:
                 home_odds = odds_data.get("match_winner", {}).get("home", 0)
                 if home_odds and 1.30 <= home_odds <= 3.50:
-                    return {
-                        "market": "Asian Handicap",
-                        "pick": "Home -0.5",
-                        "odds": home_odds,
-                        "no_double_chance": False,
-                    }
+                    markets.append({
+                        "market": "Asian Handicap", "pick": "Home -0.5",
+                        "odds": home_odds, "no_double_chance": False,
+                    })
 
         except Exception:
-            logger.exception(f"select_market failed for fixture {fid}")
+            logger.exception(f"get_qualifying_markets failed for fixture {fid}")
 
-        return None
+        return markets
 
     # ------------------------------------------------------------------
     # Single-fixture scoring
@@ -371,14 +347,16 @@ class PredictionEngine:
 
             sub_score = s1 + s2 + s3 + s4 + s5
 
-            market_result = self.select_market(
+            all_markets = self.get_qualifying_markets(
                 fixture, standing, odds, sub_score, avg_goals, predictions
             )
-            if market_result is None:
+            if not all_markets:
                 logger.debug(
-                    "score_fixture: no market selected for fixture %s", fid
+                    "score_fixture: no markets qualified for fixture %s", fid
                 )
                 return None
+            # Use the first market for scoring; Claude will pick the best one
+            market_result = all_markets[0]
 
             # Signal 6 — Odds value (10 pts max)
             selected_odds = market_result["odds"]
@@ -412,6 +390,7 @@ class PredictionEngine:
                 "selected_pick": market_result["pick"],
                 "selected_odds": selected_odds,
                 "no_double_chance": market_result.get("no_double_chance", False),
+                "market_options": all_markets,
                 "is_whitelisted": fixture.get("is_priority", False),
                 "favored_team": favored,
                 "low_data": low_data,

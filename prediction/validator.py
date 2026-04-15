@@ -44,7 +44,7 @@ class ClaudeValidator:
             if cached_raw:
                 cached = json.loads(cached_raw)
                 logger.debug(f"Claude cache hit for fixture {fixture_id}")
-                return {
+                result = {
                     **fixture,
                     "verdict": cached.get("verdict", "REJECT"),
                     "claude_reason": cached.get("claude_reason", ""),
@@ -52,18 +52,30 @@ class ClaudeValidator:
                         "adjusted_confidence", fixture.get("confidence", 0)
                     ),
                 }
+                if cached.get("selected_market"):
+                    result["selected_market"] = cached["selected_market"]
+                    result["selected_pick"] = cached["selected_pick"]
+                    result["selected_odds"] = cached["selected_odds"]
+                    result["no_double_chance"] = cached.get("no_double_chance", False)
+                return result
         except Exception:
             logger.debug(f"Claude cache read failed for fixture {fixture_id}")
 
         adv = fixture.get("advanced_stats", {})
         h2h = fixture.get("h2h", [])
         sb = fixture.get("signal_breakdown", {})
+        market_options = fixture.get("market_options", [])
 
         h2h_lines = "\n".join(
             f"  {m.get('home_name')} {m.get('home_goals', '?')}-"
             f"{m.get('away_goals', '?')} {m.get('away_name')} ({m.get('date', '')})"
             for m in (h2h if isinstance(h2h, list) else [])
         ) or "  No H2H data available"
+
+        markets_text = "\n".join(
+            f"  {i+1}. {m['market']} | {m['pick']} | Odds: {m['odds']}"
+            for i, m in enumerate(market_options)
+        ) or f"  1. {fixture.get('selected_market')} | {fixture.get('selected_pick')} | Odds: {fixture.get('selected_odds')}"
 
         prompt = f"""Match: {fixture.get('home_team_name')} vs {fixture.get('away_team_name')}
 League: {fixture.get('league_name')} ({fixture.get('country_name')})
@@ -92,32 +104,32 @@ Away team last 5 away:
 H2H last 6:
 {h2h_lines}
 ---
-Selected pick:
-  Market: {fixture.get('selected_market')}
-  Pick: {fixture.get('selected_pick')}
-  Odds: {fixture.get('selected_odds')}
+Available markets (you must select one or REJECT all):
+{markets_text}
 Rules engine confidence: {fixture.get('confidence')}/100
 Signal breakdown: {sb}"""
 
         system_prompt = (
             "You are a professional football betting analyst. "
-            "Review the fixture data and decide if the betting pick has genuine value. "
-            "The rules engine has already filtered heavily — picks reaching you have passed "
-            "multiple gates and scored 62+/100. Your job is to catch obvious red flags only: "
-            "dead rubbers, title already clinched, relegation confirmed, derby unpredictability, "
-            "cup fatigue, known injury crises, or clear tactical mismatches. "
-            "If no obvious red flag exists, APPROVE. "
-            "DOWNGRADE only if there is a specific concern but the pick still has merit. "
-            "REJECT only if there is a clear, concrete reason the pick should not be placed. "
-            "Do not REJECT based on low odds or general uncertainty — that is already priced in. "
+            "You are given a fixture and a list of available betting markets that have passed a rules engine. "
+            "Your job is to: (1) select the single best market for this fixture, or REJECT if there is a clear red flag. "
+            "Red flags: dead rubber, title already clinched, relegation confirmed, derby chaos, cup fatigue, known injury crisis, or obvious tactical mismatch. "
+            "If no red flag exists, pick the market with the best value given the data. "
+            "Prefer 1X2 when there is a clear favourite. Prefer Over 2.5 when both teams score freely. "
+            "Prefer BTTS only when both defenses are genuinely open. "
+            "Prefer Double Chance when the favourite is clear but the margin is tight. "
+            "Do not REJECT based on low odds or general uncertainty. "
             "Respond ONLY in valid JSON, no extra text:\n"
             '{"verdict": "APPROVE" or "REJECT" or "DOWNGRADE", '
             '"reason": "one sentence maximum", '
-            '"adjusted_confidence": integer}\n'
+            '"adjusted_confidence": integer, '
+            '"selected_market": "market name", '
+            '"selected_pick": "pick name"}\n'
             "APPROVE: solid pick, include in any acca.\n"
             "DOWNGRADE: minor concern, small accas only.\n"
             "REJECT: clear red flag, exclude from all accas.\n"
-            "adjusted_confidence must never exceed input."
+            "adjusted_confidence must never exceed input. "
+            "selected_market and selected_pick must match one of the available markets exactly."
         )
 
         verdict = "REJECT"
@@ -148,6 +160,25 @@ Signal breakdown: {sb}"""
             if verdict not in ("APPROVE", "REJECT", "DOWNGRADE"):
                 verdict = "REJECT"
 
+            # Apply Claude's market selection if provided and valid
+            claude_market = parsed.get("selected_market", "")
+            claude_pick = parsed.get("selected_pick", "")
+            if claude_market and claude_pick:
+                # Verify it matches one of the available options
+                options = fixture.get("market_options", [])
+                match = next(
+                    (m for m in options if m["market"] == claude_market),
+                    None,
+                )
+                if match:
+                    fixture = {
+                        **fixture,
+                        "selected_market": match["market"],
+                        "selected_pick": match["pick"],
+                        "selected_odds": match["odds"],
+                        "no_double_chance": match.get("no_double_chance", False),
+                    }
+
         except (json.JSONDecodeError, KeyError, IndexError, ValueError) as exc:
             logger.warning(
                 f"Claude response parse error for fixture {fixture_id}: {exc} | raw={raw_text!r}"
@@ -170,6 +201,10 @@ Signal breakdown: {sb}"""
                     "verdict": verdict,
                     "claude_reason": reason,
                     "adjusted_confidence": adj_conf,
+                    "selected_market": fixture.get("selected_market"),
+                    "selected_pick": fixture.get("selected_pick"),
+                    "selected_odds": fixture.get("selected_odds"),
+                    "no_double_chance": fixture.get("no_double_chance", False),
                 }),
             )
         except Exception:

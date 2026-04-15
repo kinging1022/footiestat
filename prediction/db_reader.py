@@ -33,6 +33,22 @@ BLACKLIST_ROUND_KEYWORDS = [
     "Semi-final", "Quarter-final", "Play-off",
 ]
 
+RESERVE_KEYWORDS = [
+    " II", " B ", " B)", "Res.", "Reserve",
+    "Reserves", " U21", " U23", " U20", " U19",
+    " U18", "Youth", "Junior", "Juniors",
+    "Academy", "Filial", "Sub-", "sub ",
+]
+
+
+def is_reserve_team(name: str) -> bool:
+    """Return True if team name suggests a reserve, youth or B team."""
+    name_upper = name.upper()
+    for kw in RESERVE_KEYWORDS:
+        if kw.upper() in name_upper:
+            return True
+    return False
+
 
 class DBReader:
     """Reads football data from the Django ORM for the prediction pipeline."""
@@ -88,6 +104,14 @@ class DBReader:
                             f"Skipping fixture {fixture.id} — blacklisted country: {country_name}"
                         )
                         continue
+
+                # --- Reserve / youth team filter ---
+                if is_reserve_team(fixture.home_team.name) or is_reserve_team(fixture.away_team.name):
+                    logger.debug(
+                        f"Skipped reserve team fixture: "
+                        f"{fixture.home_team.name} vs {fixture.away_team.name}"
+                    )
+                    continue
 
                 adv = getattr(fixture, "advanced_stats", None)
                 if adv is None:

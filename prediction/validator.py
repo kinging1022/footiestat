@@ -121,7 +121,13 @@ Signal breakdown: {sb}"""
             "Do not REJECT based on low odds or general uncertainty. "
             "Respond ONLY in valid JSON, no extra text:\n"
             '{"verdict": "APPROVE" or "REJECT" or "DOWNGRADE", '
-            '"reason": "one sentence maximum", '
+            '"reason": "MUST be one short sentence. Maximum 12 words. No stats, no numbers, no odds values, no percentages. '
+            'Just the key reason in plain English. '
+            "Examples: 'Strong home form against a weak away side.' | "
+            "'Both teams have scored freely in last 5.' | "
+            "'Away team dominant, home defence leaking.' | "
+            "'Dominant form and clear market value.' "
+            'Violating the 12 word limit is not permitted.", '
             '"adjusted_confidence": integer, '
             '"selected_market": "market name", '
             '"selected_pick": "pick name"}\n'
@@ -154,6 +160,10 @@ Signal breakdown: {sb}"""
             parsed = json.loads(raw_text)
             verdict = parsed.get("verdict", "REJECT")
             reason = parsed.get("reason", "")
+            # Safety net: hard-truncate reason to 12 words
+            words = reason.split()
+            if len(words) > 12:
+                reason = " ".join(words[:12]) + "."
             adj_conf = int(parsed.get("adjusted_confidence", adj_conf))
             # Claude must never exceed the input confidence
             adj_conf = min(adj_conf, fixture.get("confidence", 0))

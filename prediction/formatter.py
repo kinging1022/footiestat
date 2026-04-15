@@ -113,7 +113,9 @@ class Formatter:
             "━━━━━━━━━━━━━━━━━━",
         ]
         legs = acca.get("legs", [])
-        for i, leg in enumerate(legs, 1):
+        # Sort by kickoff date ASC so start is always earliest, end always latest
+        sorted_legs = sorted(legs, key=lambda l: l.get("date", ""))
+        for i, leg in enumerate(sorted_legs, 1):
             lines.append(
                 f"{i}. [{leg.get('kickoff_date_short', '')}] "
                 f"{leg.get('home_team_name', '')} vs "
@@ -125,9 +127,15 @@ class Formatter:
                 f"Conf: {leg.get('adjusted_confidence', leg.get('confidence', 0))}"
             )
         lines.append("━━━━━━━━━━━━━━━━━━")
-        lines.append(
-            f"📅 {acca.get('start_date', '')} – {acca.get('end_date', '')}"
+        start_date = (
+            sorted_legs[0].get("kickoff_date_short", "")
+            if sorted_legs else acca.get("start_date", "")
         )
+        end_date = (
+            sorted_legs[-1].get("kickoff_date_short", "")
+            if sorted_legs else acca.get("end_date", "")
+        )
+        lines.append(f"📅 {start_date} – {end_date}")
         lines.append(
             f"🌍 {acca.get('n_leagues', 0)} leagues | "
             f"Avg Conf: {acca.get('avg_confidence', 0)}"

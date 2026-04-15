@@ -374,12 +374,12 @@ class PredictionEngine:
             total = sub_score + s6
 
             # Mode thresholds
-            thresholds = {"small": 62, "10k": 62, "100k": 55, "monster": 55}
-            threshold = thresholds.get(mode, 62)
+            thresholds = {"small": 65, "monster": 58}
+            threshold = thresholds.get(mode, 65)
             if total < threshold:
                 logger.debug(
-                    "score_fixture: total %d < threshold %d for fixture %s",
-                    total, threshold, fid,
+                    "Fixture %s scored %d below threshold %d",
+                    fid, total, threshold,
                 )
                 return None
 
@@ -394,6 +394,8 @@ class PredictionEngine:
                 "is_whitelisted": fixture.get("is_priority", False),
                 "favored_team": favored,
                 "low_data": low_data,
+                # h2h merged so validator can include it in the Claude prompt
+                "h2h": h2h,
                 # prediction percentages merged so validator can read them
                 "home_win_pct": home_pct,
                 "draw_pct": pred.get("draw_pct", 0) or 0,
@@ -497,45 +499,75 @@ class PredictionEngine:
                 if not candidates:
                     break
 
+                candidates_sorted = sorted(
+                    candidates, key=lambda f: f["confidence"], reverse=True
+                )
                 legs: list[dict] = []
                 used_leagues: set[int] = set()
                 total_odds = 1.0
 
-                for candidate in sorted(
-                    candidates,
-                    key=lambda f: f["confidence"],
-                    reverse=True,
-                ):
-                    # Skip duplicate leagues
+                for candidate in candidates_sorted:
+                    # Hard confidence gate — no exceptions
+                    if candidate["confidence"] < 65:
+                        continue
                     if candidate["league_id"] in used_leagues:
                         continue
-                    # Odds cap
                     if candidate["selected_odds"] > 3.50:
                         continue
-                    projected = total_odds * candidate["selected_odds"]
-                    if projected > 6.10:
+                    if candidate["selected_odds"] < 1.30:
                         continue
-
+                    projected = total_odds * candidate["selected_odds"]
+                    if projected > 5.60:
+                        continue  # do NOT add if it overshoots
                     legs.append(candidate)
                     used_leagues.add(candidate["league_id"])
                     total_odds *= candidate["selected_odds"]
-
-                    if len(legs) >= 3 and 4.00 <= total_odds <= 6.00:
-                        break
                     if len(legs) >= 5:
                         break
 
-                # Validation gates
                 if len(legs) < 3:
                     continue
-                if not 4.00 <= total_odds <= 6.00:
+
+                # Priority league check — every small acca needs at least one ⭐ anchor
+                has_priority_leg = any(leg["is_priority"] for leg in legs)
+                if not has_priority_leg:
+                    logger.debug("Acca discarded — no priority league leg found")
                     continue
 
-                # Rule: minimum avg confidence 63
-                avg_conf = sum(l["confidence"] for l in legs) / len(legs)
-                if avg_conf < 63:
+                # If below minimum, try adding one more leg to push into range
+                if total_odds < 4.50:
+                    leg_ids = {l["fixture_id"] for l in legs}
+                    leg_leagues = {l["league_id"] for l in legs}
+                    remaining = [
+                        c for c in candidates_sorted
+                        if c["fixture_id"] not in leg_ids
+                        and c["league_id"] not in leg_leagues
+                        and c["confidence"] >= 65
+                        and 1.30 <= c["selected_odds"] <= 3.50
+                    ]
+                    added = False
+                    for extra in remaining:
+                        projected = total_odds * extra["selected_odds"]
+                        if 4.50 <= projected <= 5.50:
+                            legs.append(extra)
+                            used_leagues.add(extra["league_id"])
+                            total_odds = projected
+                            added = True
+                            break
+                    if not added:
+                        continue
+
+                # Hard odds gate — no exceptions
+                if not 4.50 <= round(total_odds, 2) <= 5.50:
                     logger.debug(
-                        "build_accas(small): discarding acca — avg_conf %.1f < 63",
+                        "Acca discarded — odds %.2f out of range", total_odds
+                    )
+                    continue
+
+                avg_conf = sum(l["confidence"] for l in legs) / len(legs)
+                if avg_conf < 68:
+                    logger.debug(
+                        "build_accas(small): discarding acca — avg_conf %.1f < 68",
                         avg_conf,
                     )
                     continue
@@ -549,15 +581,29 @@ class PredictionEngine:
                 for leg in legs:
                     used_ids.add(leg["fixture_id"])
 
+            # Best acca is always different from ACCA #1
             best_acca = None
             if daily_accas:
-                best_acca = max(
-                    daily_accas,
-                    key=lambda a: (
-                        a["avg_confidence"],
-                        -abs(a["total_odds"] - 5.00),
-                    ),
-                )
+                if len(daily_accas) > 1:
+                    best_acca = max(
+                        daily_accas[1:],
+                        key=lambda a: (
+                            a["avg_confidence"],
+                            -abs(a["total_odds"] - 5.00),
+                        ),
+                    )
+                else:
+                    best_acca = daily_accas[0]
+
+            if not daily_accas:
+                priority_available = any(f.get("is_priority") for f in eligible)
+                if not priority_available:
+                    return {
+                        "daily_accas": [],
+                        "best_acca": None,
+                        "insufficient_fixtures": True,
+                        "reason": "No priority league fixtures available today",
+                    }
 
             return {
                 "daily_accas": daily_accas,
@@ -590,25 +636,23 @@ class PredictionEngine:
                 }
 
             def build_monster(
+                candidates: list[dict],
                 target_min: float,
                 target_max: float,
                 max_legs: int,
                 min_leagues: int,
                 min_confidence: int,
-                allow_double_chance: bool,
             ) -> dict | None:
-                """Inner helper that builds a single monster acca."""
+                """Inner helper that builds a single monster acca from a given pool."""
                 try:
-                    candidates = [
-                        f for f in scored
+                    eligible = [
+                        f for f in candidates
                         if f.get("confidence", 0) >= min_confidence
-                        and (
-                            allow_double_chance
-                            or not f.get("no_double_chance", False)
-                        )
+                        and f.get("selected_market") != "Double Chance"
+                        and 1.50 <= f.get("selected_odds", 0) <= 4.00
                     ]
-                    # Prefer Over 2.5 and BTTS first
-                    candidates.sort(
+                    # Prefer Over 2.5 and BTTS first, then confidence DESC
+                    eligible.sort(
                         key=lambda f: (
                             0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes")
                             else 1,
@@ -620,65 +664,80 @@ class PredictionEngine:
                     total_odds = 1.0
                     league_counts: dict[int, int] = {}
 
-                    for candidate in candidates:
+                    for candidate in eligible:
+                        if total_odds >= target_max:
+                            break
                         if len(legs) >= max_legs:
                             break
                         lid = candidate["league_id"]
                         if league_counts.get(lid, 0) >= 3:
                             continue
-                        c_odds = candidate["selected_odds"]
-                        if c_odds >= 2.00:
+                        projected = total_odds * candidate["selected_odds"]
+                        # Allow 10% buffer overshoot on target_max
+                        if projected > target_max * 1.10:
                             continue
-                        projected = total_odds * c_odds
-                        if projected > target_max:
-                            continue  # skip this leg, try one with lower odds
-                        total_odds = projected
                         legs.append(candidate)
+                        total_odds *= candidate["selected_odds"]
                         league_counts[lid] = league_counts.get(lid, 0) + 1
-                        if total_odds >= target_min:
-                            break  # target reached, stop adding legs
+
+                    if not legs:
+                        return None
 
                     n_leagues = len({l["league_id"] for l in legs})
-                    if not (target_min <= total_odds <= target_max):
+
+                    if total_odds < target_min:
                         return None
                     if n_leagues < min_leagues:
                         return None
 
+                    dates = [l["date"] for l in legs]
                     return {
                         "legs": legs,
                         "total_odds": round(total_odds, 2),
                         "avg_confidence": round(
                             sum(l["confidence"] for l in legs) / len(legs), 1
-                        ) if legs else 0,
+                        ),
                         "n_legs": len(legs),
                         "n_leagues": n_leagues,
-                        "start_date": min(
-                            l["kickoff_date_short"] for l in legs
-                        ) if legs else "",
-                        "end_date": max(
-                            l["kickoff_date_short"] for l in legs
-                        ) if legs else "",
+                        "start_date": min(dates).strftime("%a %d %b"),
+                        "end_date": max(dates).strftime("%a %d %b"),
                     }
                 except Exception:
                     logger.exception("build_monster inner failed")
                     return None
 
-            acca_10k = build_monster(
-                target_min=5000,
-                target_max=15000,
-                max_legs=30,
-                min_leagues=4,
-                min_confidence=60,
-                allow_double_chance=False,
+            # Independent pools — 10k and 100k must not share legs
+            pool_10k = sorted(
+                [
+                    f for f in scored
+                    if f.get("confidence", 0) >= 62
+                    and f.get("selected_market") != "Double Chance"
+                ],
+                key=lambda f: (
+                    0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1,
+                    -f["confidence"],
+                ),
             )
-            acca_100k = build_monster(
-                target_min=50000,
-                target_max=200000,
-                max_legs=60,
-                min_leagues=6,
-                min_confidence=55,
-                allow_double_chance=False,
+
+            acca_10k = build_monster(pool_10k, 8000, 12000, 20, 5, 62)
+
+            used_10k_ids = {
+                l["fixture_id"] for l in (acca_10k["legs"] if acca_10k else [])
+            }
+            pool_100k = sorted(
+                [
+                    f for f in scored
+                    if f.get("confidence", 0) >= 58
+                    and f.get("selected_market") != "Double Chance"
+                    and f["fixture_id"] not in used_10k_ids
+                ],
+                key=lambda f: (
+                    0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1,
+                    -f["confidence"],
+                ),
             )
+
+            acca_100k = build_monster(pool_100k, 80000, 120000, 50, 8, 58)
 
             return {
                 "acca_10k": acca_10k,

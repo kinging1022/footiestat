@@ -521,7 +521,6 @@ class PredictionEngine:
                 legs: list[dict] = []
                 used_leagues: set[int] = set()
                 total_odds = 1.0
-                has_priority = False
 
                 for candidate in sorted(
                     candidates,
@@ -535,16 +534,14 @@ class PredictionEngine:
                     if candidate["selected_odds"] > 3.50:
                         continue
                     projected = total_odds * candidate["selected_odds"]
-                    if projected > 5.60:
+                    if projected > 6.10:
                         continue
 
                     legs.append(candidate)
                     used_leagues.add(candidate["league_id"])
                     total_odds *= candidate["selected_odds"]
-                    if candidate.get("is_priority"):
-                        has_priority = True
 
-                    if len(legs) >= 3 and 4.50 <= total_odds <= 5.50:
+                    if len(legs) >= 3 and 4.00 <= total_odds <= 6.00:
                         break
                     if len(legs) >= 5:
                         break
@@ -552,31 +549,15 @@ class PredictionEngine:
                 # Validation gates
                 if len(legs) < 3:
                     continue
-                if not 4.50 <= total_odds <= 5.50:
+                if not 4.00 <= total_odds <= 6.00:
                     continue
 
-                # Rule: must have at least 1 priority-league leg
-                if not has_priority:
-                    logger.debug(
-                        "build_accas(small): discarding acca — no priority leg"
-                    )
-                    continue
-
-                # Rule: minimum avg confidence 68
+                # Rule: minimum avg confidence 63
                 avg_conf = sum(l["confidence"] for l in legs) / len(legs)
-                if avg_conf < 68:
+                if avg_conf < 63:
                     logger.debug(
-                        "build_accas(small): discarding acca — avg_conf %.1f < 68",
+                        "build_accas(small): discarding acca — avg_conf %.1f < 63",
                         avg_conf,
-                    )
-                    continue
-
-                # Rule: max odds gap between legs <= 1.50
-                leg_odds = [l["selected_odds"] for l in legs]
-                if max(leg_odds) - min(leg_odds) > 1.50:
-                    logger.debug(
-                        "build_accas(small): discarding acca — odds gap %.2f > 1.50",
-                        max(leg_odds) - min(leg_odds),
                     )
                     continue
 

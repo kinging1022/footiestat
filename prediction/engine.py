@@ -495,15 +495,9 @@ class PredictionEngine:
             used_ids: set[int] = set()
             discard_counts: dict[str, int] = {
                 "too_few_legs": 0,
-                "no_priority_leg": 0,
                 "odds_out_of_range": 0,
                 "avg_conf_too_low": 0,
             }
-
-            # Determine whether any priority fixtures exist at all so we can
-            # apply a graceful fallback on nights (e.g. CL/UEL) when every
-            # fixture is from a non-priority league.
-            any_priority_eligible = any(f.get("is_priority") for f in eligible)
 
             for _ in range(10):
                 candidates = [
@@ -541,15 +535,6 @@ class PredictionEngine:
 
                 if len(legs) < 3:
                     discard_counts["too_few_legs"] += 1
-                    continue
-
-                # Priority league check — every small acca needs at least one ⭐ anchor.
-                # Fallback: when no priority fixtures are available at all (e.g. CL night),
-                # skip the anchor requirement so we can still produce accas.
-                has_priority_leg = any(leg["is_priority"] for leg in legs)
-                if any_priority_eligible and not has_priority_leg:
-                    discard_counts["no_priority_leg"] += 1
-                    logger.debug("Acca discarded — no priority league leg found")
                     continue
 
                 # If below minimum, try adding one more leg to push into range
@@ -622,17 +607,7 @@ class PredictionEngine:
                     best_acca = daily_accas[0]
 
             if not daily_accas:
-                if not any_priority_eligible:
-                    logger.info(
-                        "build_accas(small): no priority league fixtures today"
-                        " — fallback was active but still no valid accas"
-                    )
-                    return {
-                        "daily_accas": [],
-                        "best_acca": None,
-                        "insufficient_fixtures": True,
-                        "reason": "No priority league fixtures available today",
-                    }
+                pass  # fall through to return empty result below
 
             return {
                 "daily_accas": daily_accas,
@@ -797,14 +772,18 @@ class PredictionEngine:
                 max_legs: int,
                 min_leagues: int,
                 min_confidence: int,
+                label: str = "",
             ) -> dict | None:
                 """Inner helper that builds a single monster acca from a given pool."""
+                tag = f"build_monster({label})"
                 try:
+                    # Odds floor is 1.30 (not 1.50): Claude regularly picks strong
+                    # favourites at 1.30–1.49 which are still valid compounding legs.
                     eligible = [
                         f for f in candidates
                         if f.get("confidence", 0) >= min_confidence
                         and f.get("selected_market") != "Double Chance"
-                        and 1.50 <= f.get("selected_odds", 0) <= 4.00
+                        and 1.30 <= f.get("selected_odds", 0) <= 4.00
                     ]
                     # Prefer Over 2.5 and BTTS first, then confidence DESC
                     eligible.sort(
@@ -813,6 +792,11 @@ class PredictionEngine:
                             else 1,
                             -f["confidence"],
                         )
+                    )
+
+                    logger.info(
+                        "%s: pool=%d → eligible(conf>=%d, odds 1.30-4.00, no DC)=%d",
+                        tag, len(candidates), min_confidence, len(eligible),
                     )
 
                     legs: list[dict] = []
@@ -836,16 +820,41 @@ class PredictionEngine:
                         league_counts[lid] = league_counts.get(lid, 0) + 1
 
                     if not legs:
+                        logger.info("%s: 0 legs added — all candidates excluded by filters", tag)
                         return None
 
                     n_leagues = len({l["league_id"] for l in legs})
 
                     if total_odds < target_min:
+                        avg_per_leg = total_odds ** (1 / len(legs))
+                        logger.info(
+                            "%s: FAIL total_odds=%.0f < target_min=%.0f "
+                            "(legs=%d, leagues=%d, avg_odds_per_leg=%.2f)",
+                            tag, total_odds, target_min, len(legs), n_leagues, avg_per_leg,
+                        )
                         return None
                     if n_leagues < min_leagues:
+                        logger.info(
+                            "%s: FAIL n_leagues=%d < min_leagues=%d "
+                            "(total_odds=%.0f, legs=%d)",
+                            tag, n_leagues, min_leagues, total_odds, len(legs),
+                        )
                         return None
 
-                    dates = [l["date"] for l in legs]
+                    # Defensive date handling — date may be a datetime or a string
+                    raw_dates = [leg.get("date") for leg in legs if leg.get("date")]
+                    try:
+                        sorted_dates = sorted(raw_dates)
+                        d0, d1 = sorted_dates[0], sorted_dates[-1]
+                        start_date = d0.strftime("%a %d %b") if hasattr(d0, "strftime") else str(d0)[:10]
+                        end_date   = d1.strftime("%a %d %b") if hasattr(d1, "strftime") else str(d1)[:10]
+                    except Exception:
+                        start_date = end_date = ""
+
+                    logger.info(
+                        "%s: OK — legs=%d, n_leagues=%d, total_odds=%.0f",
+                        tag, len(legs), n_leagues, total_odds,
+                    )
                     return {
                         "legs": legs,
                         "total_odds": round(total_odds, 2),
@@ -854,11 +863,11 @@ class PredictionEngine:
                         ),
                         "n_legs": len(legs),
                         "n_leagues": n_leagues,
-                        "start_date": min(dates).strftime("%a %d %b"),
-                        "end_date": max(dates).strftime("%a %d %b"),
+                        "start_date": start_date,
+                        "end_date": end_date,
                     }
                 except Exception:
-                    logger.exception("build_monster inner failed")
+                    logger.exception("%s inner failed", tag)
                     return None
 
             # Both accas draw from the same scored pool — they are separate bets
@@ -877,7 +886,7 @@ class PredictionEngine:
                 ),
             )
 
-            acca_10k = build_monster(pool_10k, 8000, 12000, 20, 5, 62)
+            acca_10k = build_monster(pool_10k, 8000, 12000, 20, 5, 62, label="10k")
 
             pool_100k = sorted(
                 [
@@ -891,7 +900,7 @@ class PredictionEngine:
                 ),
             )
 
-            acca_100k = build_monster(pool_100k, 80000, 120000, 50, 8, 58)
+            acca_100k = build_monster(pool_100k, 80000, 120000, 50, 8, 58, label="100k")
 
             return {
                 "acca_10k": acca_10k,

@@ -54,11 +54,11 @@ class PredictionEngine:
                 total_teams = standing.get("total_teams", 0)
 
                 if mode == "small":
-                    if home_st.get("matches_played", 0) < 8:
-                        logger.debug(f"Gate: home matches_played < 8 — fixture {fid}")
+                    if home_st.get("matches_played", 0) < 6:
+                        logger.debug(f"Gate: home matches_played < 6 — fixture {fid}")
                         continue
-                    if away_st.get("matches_played", 0) < 8:
-                        logger.debug(f"Gate: away matches_played < 8 — fixture {fid}")
+                    if away_st.get("matches_played", 0) < 6:
+                        logger.debug(f"Gate: away matches_played < 6 — fixture {fid}")
                         continue
                     if total_teams < 6:
                         logger.debug(f"Gate: total_teams < 6 — fixture {fid}")
@@ -374,7 +374,7 @@ class PredictionEngine:
             total = sub_score + s6
 
             # Mode thresholds
-            thresholds = {"small": 65, "monster": 58}
+            thresholds = {"small": 60, "monster": 58}
             threshold = thresholds.get(mode, 65)
             if total < threshold:
                 logger.debug(
@@ -484,10 +484,10 @@ class PredictionEngine:
                     "insufficient_fixtures": True,
                 }
 
-            # Pre-filter: small accas require confidence >= 65 and no low_data
+            # Pre-filter: small accas require confidence >= 60 and no low_data
             eligible = [
                 f for f in scored
-                if f.get("confidence", 0) >= 65
+                if f.get("confidence", 0) >= 60
                 and not f.get("low_data", False)
             ]
 
@@ -516,7 +516,7 @@ class PredictionEngine:
 
                 for candidate in candidates_sorted:
                     # Hard confidence gate — no exceptions
-                    if candidate["confidence"] < 65:
+                    if candidate["confidence"] < 60:
                         continue
                     if candidate["league_id"] in used_leagues:
                         continue
@@ -545,7 +545,7 @@ class PredictionEngine:
                         c for c in candidates_sorted
                         if c["fixture_id"] not in leg_ids
                         and c["league_id"] not in leg_leagues
-                        and c["confidence"] >= 65
+                        and c["confidence"] >= 60
                         and 1.30 <= c["selected_odds"] <= 3.50
                     ]
                     added = False
@@ -569,10 +569,10 @@ class PredictionEngine:
                     continue
 
                 avg_conf = sum(l["confidence"] for l in legs) / len(legs)
-                if avg_conf < 68:
+                if avg_conf < 63:
                     discard_counts["avg_conf_too_low"] += 1
                     logger.debug(
-                        "build_accas(small): discarding acca — avg_conf %.1f < 68",
+                        "build_accas(small): discarding acca — avg_conf %.1f < 63",
                         avg_conf,
                     )
                     continue
@@ -718,9 +718,9 @@ class PredictionEngine:
             #   100x  → confidence >= 65  (small-mode gate)
             #   500x  → confidence >= 62  (10k monster gate)
             #   1000x → confidence >= 60  (slightly relaxed for more legs)
-            acca_100 = build_target(pool,   80,   120, 12, 3, 65)
-            acca_500 = build_target(pool,  400,   600, 16, 4, 62)
-            acca_1k  = build_target(pool,  800,  1200, 18, 5, 60)
+            acca_100 = build_target(pool,   80,   120, 12, 3, 60)
+            acca_500 = build_target(pool,  400,   600, 16, 4, 58)
+            acca_1k  = build_target(pool,  800,  1200, 18, 5, 56)
 
             available = [a for a in [acca_100, acca_500, acca_1k] if a]
             logger.info(

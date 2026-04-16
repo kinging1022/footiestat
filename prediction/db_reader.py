@@ -88,12 +88,21 @@ class DBReader:
 
             results: list[dict] = []
             for fixture in qs:
-                # --- Python-level blacklist filters ---
-                if fixture.round:
-                    round_lower = fixture.round.lower()
-                    if any(kw.lower() in round_lower for kw in BLACKLIST_ROUND_KEYWORDS):
+                # Monster pipeline: enforce round and reserve filters so only
+                # clean, regular-season priority fixtures are included.
+                # Daily pipeline (small): cast a wide net — Claude handles quality.
+                if mode == "monster":
+                    if fixture.round:
+                        round_lower = fixture.round.lower()
+                        if any(kw.lower() in round_lower for kw in BLACKLIST_ROUND_KEYWORDS):
+                            logger.debug(
+                                f"Skipping fixture {fixture.id} — blacklisted round: {fixture.round}"
+                            )
+                            continue
+                    if is_reserve_team(fixture.home_team.name) or is_reserve_team(fixture.away_team.name):
                         logger.debug(
-                            f"Skipping fixture {fixture.id} — blacklisted round: {fixture.round}"
+                            f"Skipped reserve team fixture: "
+                            f"{fixture.home_team.name} vs {fixture.away_team.name}"
                         )
                         continue
 
@@ -104,14 +113,6 @@ class DBReader:
                             f"Skipping fixture {fixture.id} — blacklisted country: {country_name}"
                         )
                         continue
-
-                # --- Reserve / youth team filter ---
-                if is_reserve_team(fixture.home_team.name) or is_reserve_team(fixture.away_team.name):
-                    logger.debug(
-                        f"Skipped reserve team fixture: "
-                        f"{fixture.home_team.name} vs {fixture.away_team.name}"
-                    )
-                    continue
 
                 adv = getattr(fixture, "advanced_stats", None)
                 if adv is None:

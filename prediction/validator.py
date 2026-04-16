@@ -77,6 +77,24 @@ class ClaudeValidator:
             for i, m in enumerate(market_options)
         ) or f"  1. {fixture.get('selected_market')} | {fixture.get('selected_pick')} | Odds: {fixture.get('selected_odds')}"
 
+        def _sum_similar(matches: list, key: str) -> int:
+            return sum(
+                m.get(key, 0) for m in (matches or [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            )
+
+        home_sim = adv.get("home_last_5_vs_similar_rank", [])
+        away_sim = adv.get("away_last_5_vs_similar_rank", [])
+        home_sim_n = sum(1 for m in home_sim if isinstance(m, dict) and m.get("opponent") != "No data")
+        away_sim_n = sum(1 for m in away_sim if isinstance(m, dict) and m.get("opponent") != "No data")
+
+        similar_block = ""
+        if home_sim_n >= 2 or away_sim_n >= 2:
+            similar_block = f"""
+vs similar-rank opponents (last {home_sim_n} / {away_sim_n} matches):
+  Home: {_sum_similar(home_sim, 'goals_scored')} scored, {_sum_similar(home_sim, 'goals_conceded')} conceded
+  Away: {_sum_similar(away_sim, 'goals_scored')} scored, {_sum_similar(away_sim, 'goals_conceded')} conceded"""
+
         prompt = f"""Match: {fixture.get('home_team_name')} vs {fixture.get('away_team_name')}
 League: {fixture.get('league_name')} ({fixture.get('country_name')})
 Kickoff: {fixture.get('kickoff_str')}
@@ -99,7 +117,7 @@ Away team last 5 overall:
   Goals scored: {adv.get('away_goals_scored_last_5', 0)}
   Goals conceded: {adv.get('away_goals_conceded_last_5', 0)}
 Away team last 5 away:
-  {adv.get('away_away_wins_last_5', 0)}W {adv.get('away_away_draws_last_5', 0)}D {adv.get('away_away_losses_last_5', 0)}L
+  {adv.get('away_away_wins_last_5', 0)}W {adv.get('away_away_draws_last_5', 0)}D {adv.get('away_away_losses_last_5', 0)}L{similar_block}
 ---
 H2H last 6:
 {h2h_lines}

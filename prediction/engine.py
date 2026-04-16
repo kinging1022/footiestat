@@ -182,12 +182,51 @@ class PredictionEngine:
                         "odds": away_odds, "no_double_chance": False,
                     })
 
-            # BTTS Yes — both teams must score AND both defenses leaky
+            # BTTS Yes — quality-adjusted check using vs-similar-rank stats.
+            # If both teams have >= 3 similar-rank matches we use those goals
+            # figures (which filter out goals scored against much weaker/stronger
+            # opposition).  Otherwise we fall back to overall last-5 stats.
+            # Additionally skip if one team is a clear favourite (>55 % win
+            # probability) — a dominant side is likely to keep a clean sheet.
+            def _similar_goals(matches: list) -> tuple[int, int, int]:
+                """Return (goals_scored, goals_conceded, n_real_matches)."""
+                real = [
+                    m for m in (matches or [])
+                    if isinstance(m, dict) and m.get("opponent") != "No data"
+                ]
+                return (
+                    sum(m.get("goals_scored", 0) for m in real),
+                    sum(m.get("goals_conceded", 0) for m in real),
+                    len(real),
+                )
+
+            h_sim_scored, h_sim_conceded, h_sim_n = _similar_goals(
+                adv.get("home_last_5_vs_similar_rank", [])
+            )
+            a_sim_scored, a_sim_conceded, a_sim_n = _similar_goals(
+                adv.get("away_last_5_vs_similar_rank", [])
+            )
+            use_similar = h_sim_n >= 3 and a_sim_n >= 3
+
+            if use_similar:
+                btts_home_attack  = h_sim_scored   >= 3
+                btts_away_attack  = a_sim_scored   >= 2
+                btts_home_defense = h_sim_conceded >= 2
+                btts_away_defense = a_sim_conceded >= 2
+            else:
+                btts_home_attack  = adv.get("home_goals_scored_last_5",    0) >= 4
+                btts_away_attack  = adv.get("away_goals_scored_last_5",    0) >= 3
+                btts_home_defense = adv.get("home_goals_conceded_last_5",  0) >= 2
+                btts_away_defense = adv.get("away_goals_conceded_last_5",  0) >= 2
+
+            max_win_pct = max(home_pct, away_pct)
+
             if (
-                adv.get("home_goals_scored_last_5", 0) >= 4
-                and adv.get("away_goals_scored_last_5", 0) >= 3
-                and adv.get("home_goals_conceded_last_5", 0) >= 2
-                and adv.get("away_goals_conceded_last_5", 0) >= 2
+                max_win_pct <= 55          # not a one-sided mismatch
+                and btts_home_attack
+                and btts_away_attack
+                and btts_home_defense
+                and btts_away_defense
             ):
                 btts_odds = odds_data.get("btts", {}).get("yes", 0)
                 if btts_odds and 1.30 <= btts_odds <= 3.50:

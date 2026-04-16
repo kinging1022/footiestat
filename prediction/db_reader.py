@@ -172,6 +172,8 @@ class DBReader:
                 "away_last_5_form": list(adv.away_last_5_form),
                 "home_last_5_home_form": list(adv.home_last_5_home_form),
                 "away_last_5_away_form": list(adv.away_last_5_away_form),
+                "home_last_5_vs_similar_rank": list(adv.home_last_5_vs_similar_rank or []),
+                "away_last_5_vs_similar_rank": list(adv.away_last_5_vs_similar_rank or []),
             },
         }
 

@@ -95,9 +95,21 @@ vs similar-rank opponents (last {home_sim_n} / {away_sim_n} matches):
   Home: {_sum_similar(home_sim, 'goals_scored')} scored, {_sum_similar(home_sim, 'goals_conceded')} conceded
   Away: {_sum_similar(away_sim, 'goals_scored')} scored, {_sum_similar(away_sim, 'goals_conceded')} conceded"""
 
+        home_rank = fixture.get("home_rank", 0)
+        away_rank = fixture.get("away_rank", 0)
+        total_teams = fixture.get("total_teams", 0)
+        rank_line = (
+            f"Table: {fixture.get('home_team_name')} #{home_rank} "
+            f"vs {fixture.get('away_team_name')} #{away_rank} "
+            f"(of {total_teams})"
+            if home_rank and away_rank
+            else "Table: positions unavailable"
+        )
+
         prompt = f"""Match: {fixture.get('home_team_name')} vs {fixture.get('away_team_name')}
 League: {fixture.get('league_name')} ({fixture.get('country_name')})
 Kickoff: {fixture.get('kickoff_str')}
+{rank_line}
 ---
 Predictions:
   Home Win: {fixture.get('home_win_pct', 'N/A')}%
@@ -131,10 +143,12 @@ Signal breakdown: {sb}"""
             "You are a professional football betting analyst. "
             "You are given a fixture and a list of available betting markets that have passed a rules engine. "
             "Your job is to: (1) select the single best market for this fixture, or REJECT if there is a clear red flag. "
-            "Red flags: dead rubber, title already clinched, relegation confirmed, derby chaos, cup fatigue, known injury crisis, or obvious tactical mismatch. "
+            "Red flags: dead rubber, title already clinched, relegation confirmed, derby chaos, cup fatigue, known injury crisis, obvious tactical mismatch, "
+            "or a large table rank gap (8+ positions in a 16+ team league, 5+ in a smaller league) — a top-half side rarely concedes to a bottom-half side. "
             "If no red flag exists, pick the market with the best value given the data. "
             "Prefer 1X2 when there is a clear favourite. Prefer Over 2.5 when both teams score freely. "
-            "Prefer BTTS only when both defenses are genuinely open. "
+            "Prefer BTTS only when both defenses are genuinely open AND the teams are close in the table. "
+            "If one team sits 8+ places above the other, do NOT select BTTS — pick 1X2 or Double Chance for the stronger side instead. "
             "Prefer Double Chance when the favourite is clear but the margin is tight. "
             "Do not REJECT based on low odds or general uncertainty. "
             "Respond ONLY in valid JSON, no extra text:\n"

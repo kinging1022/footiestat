@@ -136,6 +136,485 @@ class PredictionEngine:
         return 0.0
 
     # ------------------------------------------------------------------
+    # BTTS guard
+    # ------------------------------------------------------------------
+
+    def _btts_guard(
+        self,
+        fixture: dict,
+        adv: dict,
+        h2h: list,
+        btts_odds: float,
+        sub_score: int,
+    ) -> tuple[bool, str]:
+        """
+        Five-layer BTTS Yes selection guard.
+
+        Returns (allowed, rejection_code).  rejection_code is one of:
+          REJECTED_BTTS:H2H_FILTER
+          REJECTED_BTTS:AWAY_DROUGHT
+          REJECTED_BTTS:DOMINANCE
+          REJECTED_BTTS:ODDS_SANITY
+        All checks pass → returns (True, "").
+        """
+        home_name = fixture.get("home_team_name", "")
+        away_name = fixture.get("away_team_name", "")
+
+        # Pre-filter H2H to rows with valid scorelines (reused across checks)
+        valid_h2h = [
+            m for m in (h2h or [])
+            if m.get("home_goals") is not None and m.get("away_goals") is not None
+        ]
+        n_h2h = len(valid_h2h)
+
+        # ── Check 1: H2H Scoring Filter ────────────────────────────────
+        # Away team must have scored in >= 40 % of recent H2H meetings.
+        # Threshold rises to 50 % when odds > 2.30 (market already sceptical).
+        if n_h2h >= 4:
+            away_scored_in_h2h = 0
+            for m in valid_h2h:
+                if m.get("home_name") == away_name:
+                    if (m.get("home_goals") or 0) >= 1:
+                        away_scored_in_h2h += 1
+                elif m.get("away_name") == away_name:
+                    if (m.get("away_goals") or 0) >= 1:
+                        away_scored_in_h2h += 1
+            h2h_score_rate = away_scored_in_h2h / n_h2h
+            threshold = 0.50 if btts_odds > 2.30 else 0.40
+            if h2h_score_rate < threshold:
+                logger.debug(
+                    "REJECTED_BTTS:H2H_FILTER — %s scored in %.0f%% of H2H "
+                    "(need %.0f%%, odds=%.2f) fixture=%s",
+                    away_name, h2h_score_rate * 100, threshold * 100,
+                    btts_odds, fixture.get("fixture_id"),
+                )
+                return False, "REJECTED_BTTS:H2H_FILTER"
+
+        # ── Check 2: Away Goal Drought ──────────────────────────────────
+        # Away team failed to score in 3+ of last 5 away games → reject.
+        away_away_form = [
+            m for m in adv.get("away_last_5_away_form", [])
+            if isinstance(m, dict) and m.get("opponent") != "No data"
+        ]
+        if len(away_away_form) >= 4:
+            blanks = sum(
+                1 for m in away_away_form if (m.get("goals_scored") or 0) == 0
+            )
+            if blanks >= 3:
+                # Equivalent to a -20 confidence penalty; reject if sub_score
+                # can't survive it (sub 55 + ~10 s6 ≈ 65 total threshold).
+                if (sub_score - 20) < 55:
+                    logger.debug(
+                        "REJECTED_BTTS:AWAY_DROUGHT — %s blanked in %d/%d away "
+                        "games, penalized sub_score=%d fixture=%s",
+                        away_name, blanks, len(away_away_form),
+                        sub_score - 20, fixture.get("fixture_id"),
+                    )
+                    return False, "REJECTED_BTTS:AWAY_DROUGHT"
+
+        # ── Check 3: Dominance Asymmetry ────────────────────────────────
+        # Home team wins > 60 % AND away team wins < 15 % of H2H → dominant
+        # fixture.  Then require BOTH: (a) away team scored in last home match,
+        # (b) home team conceded in >= 2 of last 5 home games.
+        if n_h2h >= 4:
+            home_h2h_wins = 0
+            away_h2h_wins = 0
+            for m in valid_h2h:
+                hg = m.get("home_goals") or 0
+                ag = m.get("away_goals") or 0
+                if m.get("home_name") == home_name and hg > ag:
+                    home_h2h_wins += 1
+                elif m.get("away_name") == home_name and ag > hg:
+                    home_h2h_wins += 1
+                if m.get("home_name") == away_name and hg > ag:
+                    away_h2h_wins += 1
+                elif m.get("away_name") == away_name and ag > hg:
+                    away_h2h_wins += 1
+
+            if (home_h2h_wins / n_h2h) > 0.60 and (away_h2h_wins / n_h2h) < 0.15:
+                # a) Away team scored in their most recent home match
+                away_form = adv.get("away_last_5_form", [])
+                away_last_home = next(
+                    (m for m in away_form
+                     if isinstance(m, dict) and m.get("is_home") is True),
+                    None,
+                )
+                away_can_score = (
+                    away_last_home is not None
+                    and (away_last_home.get("goals_scored") or 0) >= 1
+                )
+                # b) Home team conceded in >= 2 of last 5 home games
+                home_home_form = adv.get("home_last_5_home_form", [])
+                home_porous = sum(
+                    1 for m in home_home_form
+                    if isinstance(m, dict) and (m.get("goals_conceded") or 0) >= 1
+                ) >= 2
+
+                if not away_can_score or not home_porous:
+                    logger.debug(
+                        "REJECTED_BTTS:DOMINANCE — home H2H %.0f%%, away H2H %.0f%%, "
+                        "away_can_score=%s, home_porous=%s fixture=%s",
+                        (home_h2h_wins / n_h2h) * 100,
+                        (away_h2h_wins / n_h2h) * 100,
+                        away_can_score, home_porous,
+                        fixture.get("fixture_id"),
+                    )
+                    return False, "REJECTED_BTTS:DOMINANCE"
+
+        # ── Check 4: Odds Sanity ─────────────────────────────────────────
+        # Odds > 2.80 means the market considers BTTS unlikely; only allow if
+        # both teams show strong recent form (home wins >= 3, away wins >= 2
+        # in last 5 overall).
+        if btts_odds > 2.80:
+            if not (
+                adv.get("home_wins_last_5", 0) >= 3
+                and adv.get("away_wins_last_5", 0) >= 2
+            ):
+                logger.debug(
+                    "REJECTED_BTTS:ODDS_SANITY — odds=%.2f, home_wins=%d, "
+                    "away_wins=%d fixture=%s",
+                    btts_odds,
+                    adv.get("home_wins_last_5", 0),
+                    adv.get("away_wins_last_5", 0),
+                    fixture.get("fixture_id"),
+                )
+                return False, "REJECTED_BTTS:ODDS_SANITY"
+
+        return True, ""
+
+    def _win_guard(
+        self,
+        fixture: dict,
+        adv: dict,
+        h2h: list,
+        standings: dict,
+        pick_side: str,    # "home" or "away"
+        pick_odds: float,
+        sub_score: int,
+    ) -> tuple[bool, str]:
+        """
+        WIN (1X2) selection guard.
+
+        Returns (allowed, rejection_code).  rejection_code is one of:
+          REJECTED_WIN:FORM
+          REJECTED_WIN:OPPOSITION
+          REJECTED_WIN:H2H_BIAS
+          REJECTED_WIN:ODDS_FLOOR
+          REJECTED_WIN:TIER_PENALTY
+        All checks pass → returns (True, "").
+        """
+        home_name   = fixture.get("home_team_name", "")
+        away_name   = fixture.get("away_team_name", "")
+        winner_name = home_name if pick_side == "home" else away_name
+        fid         = fixture.get("fixture_id")
+
+        # Venue-context form for the predicted winner and opponent.
+        # winner_form = predicted winner's last 5 matches IN the relevant venue.
+        # opp_form    = opponent's last 5 matches IN their travelling context.
+        if pick_side == "home":
+            winner_form = [
+                m for m in adv.get("home_last_5_home_form", [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            ]
+            opp_form = [
+                m for m in adv.get("away_last_5_away_form", [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            ]
+        else:
+            winner_form = [
+                m for m in adv.get("away_last_5_away_form", [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            ]
+            opp_form = [
+                m for m in adv.get("home_last_5_home_form", [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            ]
+
+        # H2H pre-computation — shared by checks 3 and 4.
+        valid_h2h = [
+            m for m in (h2h or [])
+            if m.get("home_goals") is not None and m.get("away_goals") is not None
+        ]
+        n_h2h           = len(valid_h2h)
+        winner_h2h_wins = 0
+        h2h_draw_count  = 0
+        if n_h2h >= 4:
+            for m in valid_h2h:
+                hg = m.get("home_goals") or 0
+                ag = m.get("away_goals") or 0
+                if hg == ag:
+                    h2h_draw_count += 1
+                elif m.get("home_name") == winner_name and hg > ag:
+                    winner_h2h_wins += 1
+                elif m.get("away_name") == winner_name and ag > hg:
+                    winner_h2h_wins += 1
+
+        # ── Check 1: Form Consistency ──────────────────────────────────
+        # Predicted winner must win >= 40% of recent venue-context matches.
+        # Two consecutive losses in that context = immediate reject.
+        if len(winner_form) >= 4:
+            ctx_wins = sum(1 for m in winner_form if m.get("result") == "W")
+            ctx_rate = ctx_wins / len(winner_form)
+            if ctx_rate < 0.40 and (sub_score - 15) < 55:
+                logger.debug(
+                    "REJECTED_WIN:FORM — %s %s-context win rate %.0f%%, "
+                    "penalized sub=%d fixture=%s",
+                    winner_name, pick_side, ctx_rate * 100, sub_score - 15, fid,
+                )
+                return False, "REJECTED_WIN:FORM"
+            if (
+                len(winner_form) >= 2
+                and [m.get("result") for m in winner_form[:2]] == ["L", "L"]
+            ):
+                logger.debug(
+                    "REJECTED_WIN:FORM — %s lost last 2 consecutive context "
+                    "matches fixture=%s", winner_name, fid,
+                )
+                return False, "REJECTED_WIN:FORM"
+
+        # ── Check 2: Opposition Strength ──────────────────────────────
+        # If opponent has kept 3+ clean sheets in their last 5 travelling
+        # matches, they are defensively solid — require winner ctx rate >= 60%.
+        if len(opp_form) >= 4:
+            opp_clean_sheets = sum(
+                1 for m in opp_form if (m.get("goals_conceded") or 0) == 0
+            )
+            if opp_clean_sheets >= 3 and len(winner_form) >= 4:
+                ctx_wins = sum(1 for m in winner_form if m.get("result") == "W")
+                if ctx_wins / len(winner_form) < 0.60:
+                    logger.debug(
+                        "REJECTED_WIN:OPPOSITION — opp %d/%d clean sheets, "
+                        "winner ctx rate below 60%% fixture=%s",
+                        opp_clean_sheets, len(opp_form), fid,
+                    )
+                    return False, "REJECTED_WIN:OPPOSITION"
+
+        # ── Check 3: H2H Win Bias ─────────────────────────────────────
+        if n_h2h >= 4:
+            h2h_win_rate  = winner_h2h_wins / n_h2h
+            h2h_draw_rate = h2h_draw_count  / n_h2h
+
+            # Never back a team that lost their last 3 H2H meetings
+            lost_last_3 = len(valid_h2h) >= 3 and all(
+                (
+                    m.get("home_name") == winner_name
+                    and (m.get("home_goals") or 0) < (m.get("away_goals") or 0)
+                ) or (
+                    m.get("away_name") == winner_name
+                    and (m.get("away_goals") or 0) < (m.get("home_goals") or 0)
+                )
+                for m in valid_h2h[:3]
+            )
+            if lost_last_3:
+                logger.debug(
+                    "REJECTED_WIN:H2H_BIAS — %s lost last 3 H2H fixture=%s",
+                    winner_name, fid,
+                )
+                return False, "REJECTED_WIN:H2H_BIAS"
+
+            # Draw-heavy fixtures → Win pick unreliable
+            if h2h_draw_rate > 0.40:
+                logger.debug(
+                    "REJECTED_WIN:H2H_BIAS — H2H draw rate %.0f%% > 40%% "
+                    "fixture=%s", h2h_draw_rate * 100, fid,
+                )
+                return False, "REJECTED_WIN:H2H_BIAS"
+
+            # Low H2H win rate → confidence penalty
+            if h2h_win_rate < 0.35 and (sub_score - 20) < 55:
+                logger.debug(
+                    "REJECTED_WIN:H2H_BIAS — %s H2H win rate %.0f%% < 35%%, "
+                    "penalized sub=%d fixture=%s",
+                    winner_name, h2h_win_rate * 100, sub_score - 20, fid,
+                )
+                return False, "REJECTED_WIN:H2H_BIAS"
+
+        # ── Check 4: Odds Floor — heavy favourite strict conditions ────
+        # Our gate already excludes odds < 1.25; tighten the 1.25–1.35 band.
+        if 1.25 <= pick_odds <= 1.35:
+            # (a) Context win rate >= 67%
+            ctx_ok = True
+            if len(winner_form) >= 4:
+                ctx_wins = sum(1 for m in winner_form if m.get("result") == "W")
+                ctx_ok   = (ctx_wins / len(winner_form)) >= 0.67
+            # (b) H2H win rate >= 50% (skipped when data is sparse)
+            h2h_ok = True
+            if n_h2h >= 4:
+                h2h_ok = (winner_h2h_wins / n_h2h) >= 0.50
+            # (c) Opponent in bottom half of table
+            opp_key      = "away" if pick_side == "home" else "home"
+            opp_rank     = standings.get(opp_key, {}).get("rank", 0)
+            total_teams  = standings.get("total_teams", 0)
+            opp_bottom   = total_teams > 0 and opp_rank > 0 and opp_rank > (total_teams / 2)
+            if not (ctx_ok and h2h_ok and opp_bottom):
+                logger.debug(
+                    "REJECTED_WIN:ODDS_FLOOR — odds=%.2f strict gate failed "
+                    "(ctx_ok=%s h2h_ok=%s opp_bottom=%s) fixture=%s",
+                    pick_odds, ctx_ok, h2h_ok, opp_bottom, fid,
+                )
+                return False, "REJECTED_WIN:ODDS_FLOOR"
+
+        # ── Check 5: League Tier Penalty ──────────────────────────────
+        # Leagues outside the top-20 priority carry noisier form data.
+        if fixture.get("league_priority", 999) > 20 and (sub_score - 10) < 60:
+            logger.debug(
+                "REJECTED_WIN:TIER_PENALTY — priority=%d penalized sub=%d "
+                "fixture=%s",
+                fixture.get("league_priority", 999), sub_score - 10, fid,
+            )
+            return False, "REJECTED_WIN:TIER_PENALTY"
+
+        return True, ""
+
+    def _over25_guard(
+        self,
+        fixture: dict,
+        adv: dict,
+        h2h: list,
+        odds_data: dict,
+        over_odds: float,
+        sub_score: int,
+    ) -> tuple[bool, str]:
+        """
+        OVER 2.5 selection guard.
+
+        Returns (allowed, rejection_code).  rejection_code is one of:
+          REJECTED_OVER:SCORING_RATE
+          REJECTED_OVER:DEFENCE
+          REJECTED_OVER:H2H_GOALS
+          REJECTED_OVER:MATCH_CONTEXT
+          REJECTED_OVER:ODDS_RANGE
+        All checks pass → returns (True, "").
+        """
+        fid = fixture.get("fixture_id")
+
+        # Form lists — venue-specific where meaningful, overall for defence check
+        home_home_form = [
+            m for m in adv.get("home_last_5_home_form", [])
+            if isinstance(m, dict) and m.get("opponent") != "No data"
+        ]
+        away_away_form = [
+            m for m in adv.get("away_last_5_away_form", [])
+            if isinstance(m, dict) and m.get("opponent") != "No data"
+        ]
+        home_overall = [
+            m for m in adv.get("home_last_5_form", [])
+            if isinstance(m, dict) and m.get("opponent") != "No data"
+        ]
+        away_overall = [
+            m for m in adv.get("away_last_5_form", [])
+            if isinstance(m, dict) and m.get("opponent") != "No data"
+        ]
+
+        # H2H pre-computation
+        valid_h2h = [
+            m for m in (h2h or [])
+            if m.get("home_goals") is not None and m.get("away_goals") is not None
+        ]
+        n_h2h   = len(valid_h2h)
+        h2h_avg = (
+            sum(
+                (m.get("home_goals") or 0) + (m.get("away_goals") or 0)
+                for m in valid_h2h
+            ) / n_h2h
+            if n_h2h >= 4 else None
+        )
+
+        # ── Check 1: Combined Venue-Context Scoring Rate ───────────────
+        # Count matches in each team's venue context that had 3+ total goals.
+        # Reject if combined rate < 45%, penalize if either side < 33%.
+        if len(home_home_form) >= 4 and len(away_away_form) >= 4:
+            home_over = sum(
+                1 for m in home_home_form
+                if (m.get("goals_scored") or 0) + (m.get("goals_conceded") or 0) >= 3
+            )
+            away_over = sum(
+                1 for m in away_away_form
+                if (m.get("goals_scored") or 0) + (m.get("goals_conceded") or 0) >= 3
+            )
+            n_total       = len(home_home_form) + len(away_away_form)
+            combined_rate = (home_over + away_over) / n_total
+            if combined_rate < 0.45:
+                logger.debug(
+                    "REJECTED_OVER:SCORING_RATE — combined Over2.5 rate %.0f%% "
+                    "< 45%% fixture=%s", combined_rate * 100, fid,
+                )
+                return False, "REJECTED_OVER:SCORING_RATE"
+            if (
+                home_over / len(home_home_form) < 0.33
+                or away_over / len(away_away_form) < 0.33
+            ) and (sub_score - 15) < 50:
+                logger.debug(
+                    "REJECTED_OVER:SCORING_RATE — per-team rate too low "
+                    "(home %.0f%% away %.0f%%), penalized sub=%d fixture=%s",
+                    (home_over / len(home_home_form)) * 100,
+                    (away_over / len(away_away_form)) * 100,
+                    sub_score - 15, fid,
+                )
+                return False, "REJECTED_OVER:SCORING_RATE"
+
+        # ── Check 2: Defensive Leakiness ──────────────────────────────
+        # At least one team must have conceded 2+ goals in 2+ of last 5 overall.
+        # If both teams are tight (avg < 1.0/game), reject.
+        if len(home_overall) >= 4 and len(away_overall) >= 4:
+            home_leaky = (
+                sum(1 for m in home_overall if (m.get("goals_conceded") or 0) >= 2) >= 2
+            )
+            away_leaky = (
+                sum(1 for m in away_overall if (m.get("goals_conceded") or 0) >= 2) >= 2
+            )
+            if not home_leaky and not away_leaky:
+                home_avg_c = adv.get("home_goals_conceded_last_5", 0) / 5
+                away_avg_c = adv.get("away_goals_conceded_last_5", 0) / 5
+                if home_avg_c < 1.0 and away_avg_c < 1.0:
+                    logger.debug(
+                        "REJECTED_OVER:DEFENCE — both teams tight "
+                        "(home avg=%.1f away avg=%.1f conceded/game) fixture=%s",
+                        home_avg_c, away_avg_c, fid,
+                    )
+                    return False, "REJECTED_OVER:DEFENCE"
+
+        # ── Check 3: H2H Goals Average ─────────────────────────────────
+        # H2H goal patterns are sticky — they override single-season form.
+        if h2h_avg is not None:
+            if h2h_avg < 1.8:
+                logger.debug(
+                    "REJECTED_OVER:H2H_GOALS — H2H avg %.2f < 1.8 fixture=%s",
+                    h2h_avg, fid,
+                )
+                return False, "REJECTED_OVER:H2H_GOALS"
+            if h2h_avg < 2.2 and (sub_score - 15) < 50:
+                logger.debug(
+                    "REJECTED_OVER:H2H_GOALS — H2H avg %.2f < 2.2, penalized "
+                    "sub=%d fixture=%s", h2h_avg, sub_score - 15, fid,
+                )
+                return False, "REJECTED_OVER:H2H_GOALS"
+
+        # ── Check 4: Match Context ─────────────────────────────────────
+        # A heavy home favourite (odds < 1.40) may sit back once ahead,
+        # suppressing total goals.  Apply a -10 penalty.
+        home_win_odds = odds_data.get("match_winner", {}).get("home", 0)
+        if home_win_odds and 1.0 < home_win_odds < 1.40 and (sub_score - 10) < 50:
+            logger.debug(
+                "REJECTED_OVER:MATCH_CONTEXT — heavy home favourite odds=%.2f, "
+                "penalized sub=%d fixture=%s",
+                home_win_odds, sub_score - 10, fid,
+            )
+            return False, "REJECTED_OVER:MATCH_CONTEXT"
+
+        # ── Check 5: Odds Range ────────────────────────────────────────
+        # At odds > 1.90 the market is sceptical; require H2H avg > 2.80
+        # to override it.
+        if over_odds > 1.90 and h2h_avg is not None and h2h_avg <= 2.80:
+            logger.debug(
+                "REJECTED_OVER:ODDS_RANGE — odds=%.2f > 1.90 but H2H avg=%.2f "
+                "<= 2.80 fixture=%s", over_odds, h2h_avg, fid,
+            )
+            return False, "REJECTED_OVER:ODDS_RANGE"
+
+        return True, ""
+
+    # ------------------------------------------------------------------
     # Market selection
     # ------------------------------------------------------------------
 
@@ -147,6 +626,7 @@ class PredictionEngine:
         sub_score: int,
         avg_goals: float,
         predictions: dict | None = None,
+        h2h: list | None = None,
     ) -> list[dict]:
         """
         Return ALL qualifying betting markets for a fixture.
@@ -172,15 +652,23 @@ class PredictionEngine:
                 home_odds = odds_data.get("match_winner", {}).get("home", 0)
                 away_odds = odds_data.get("match_winner", {}).get("away", 0)
                 if home_pct >= away_pct and 1.25 <= home_odds <= 2.50:
-                    markets.append({
-                        "market": "1X2", "pick": "Home Win",
-                        "odds": home_odds, "no_double_chance": False,
-                    })
+                    win_ok, _ = self._win_guard(
+                        fixture, adv, h2h or [], standings, "home", home_odds, sub_score
+                    )
+                    if win_ok:
+                        markets.append({
+                            "market": "1X2", "pick": "Home Win",
+                            "odds": home_odds, "no_double_chance": False,
+                        })
                 elif away_pct > home_pct and 1.25 <= away_odds <= 2.50:
-                    markets.append({
-                        "market": "1X2", "pick": "Away Win",
-                        "odds": away_odds, "no_double_chance": False,
-                    })
+                    win_ok, _ = self._win_guard(
+                        fixture, adv, h2h or [], standings, "away", away_odds, sub_score
+                    )
+                    if win_ok:
+                        markets.append({
+                            "market": "1X2", "pick": "Away Win",
+                            "odds": away_odds, "no_double_chance": False,
+                        })
 
             # BTTS Yes — quality-adjusted check using vs-similar-rank stats.
             # If both teams have >= 3 similar-rank matches we use those goals
@@ -221,8 +709,24 @@ class PredictionEngine:
 
             max_win_pct = max(home_pct, away_pct)
 
+            # Rank gap guard — block BTTS when teams are too far apart in the
+            # table.  A 1st vs 17th matchup is a class difference, not a
+            # goal-fest: the stronger side almost always keeps a clean sheet.
+            home_rank = standings.get("home", {}).get("rank", 0)
+            away_rank = standings.get("away", {}).get("rank", 0)
+            total_teams_in_table = standings.get("total_teams", 0)
+            rank_gap_blocks_btts = False
+            if home_rank > 0 and away_rank > 0:
+                rank_gap = abs(home_rank - away_rank)
+                # Threshold scales slightly with league size:
+                #   >= 16 teams → gap of 8+ is a clear mismatch
+                #   < 16 teams  → gap of 5+ is already significant
+                max_gap = 8 if total_teams_in_table >= 16 else 5
+                rank_gap_blocks_btts = rank_gap >= max_gap
+
             if (
-                max_win_pct <= 55          # not a one-sided mismatch
+                not rank_gap_blocks_btts
+                and max_win_pct <= 52      # tightened from 55 — clear favourites rarely concede
                 and btts_home_attack
                 and btts_away_attack
                 and btts_home_defense
@@ -230,19 +734,27 @@ class PredictionEngine:
             ):
                 btts_odds = odds_data.get("btts", {}).get("yes", 0)
                 if btts_odds and 1.30 <= btts_odds <= 3.50:
-                    markets.append({
-                        "market": "BTTS Yes", "pick": "Both Teams Score",
-                        "odds": btts_odds, "no_double_chance": False,
-                    })
+                    btts_ok, btts_rejection = self._btts_guard(
+                        fixture, adv, h2h or [], btts_odds, sub_score
+                    )
+                    if btts_ok:
+                        markets.append({
+                            "market": "BTTS Yes", "pick": "Both Teams Score",
+                            "odds": btts_odds, "no_double_chance": False,
+                        })
 
             # Over 2.5
             if avg_goals >= 2.5:
                 over_odds = odds_data.get("over_under", {}).get("over", 0)
                 if over_odds and 1.30 <= over_odds <= 3.50:
-                    markets.append({
-                        "market": "Over 2.5", "pick": "Over 2.5 Goals",
-                        "odds": over_odds, "no_double_chance": False,
-                    })
+                    over_ok, _ = self._over25_guard(
+                        fixture, adv, h2h or [], odds_data, over_odds, sub_score
+                    )
+                    if over_ok:
+                        markets.append({
+                            "market": "Over 2.5", "pick": "Over 2.5 Goals",
+                            "odds": over_odds, "no_double_chance": False,
+                        })
 
             # Double Chance
             if sub_score >= 58:
@@ -387,7 +899,7 @@ class PredictionEngine:
             sub_score = s1 + s2 + s3 + s4 + s5
 
             all_markets = self.get_qualifying_markets(
-                fixture, standing, odds, sub_score, avg_goals, predictions
+                fixture, standing, odds, sub_score, avg_goals, predictions, h2h
             )
             if not all_markets:
                 logger.debug(
@@ -440,6 +952,10 @@ class PredictionEngine:
                 "draw_pct": pred.get("draw_pct", 0) or 0,
                 "away_win_pct": away_pct,
                 "advice": pred.get("advice", ""),
+                # table positions for the validator rank-gap check
+                "home_rank": standing.get("home", {}).get("rank", 0),
+                "away_rank": standing.get("away", {}).get("rank", 0),
+                "total_teams": standing.get("total_teams", 0),
                 "signal_breakdown": {
                     "s1": s1,
                     "s2": s2,

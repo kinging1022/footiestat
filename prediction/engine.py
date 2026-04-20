@@ -1451,7 +1451,11 @@ class PredictionEngine:
                 key=_monster_sort_key,
             )
 
-            acca_10k = build_monster(pool_10k, 8000, 12000, 30, 5, 62, label="10k")
+            # target_min is a soft floor — kept low so we always produce output.
+            # On short-odds days (avg leg 1.50) the achievable product is ~4k for
+            # 10k (20 legs) and ~47k for 100k (25 legs), so floors of 500/5000
+            # ensure the pipeline never silently returns nothing.
+            acca_10k = build_monster(pool_10k, 500, 12000, 30, 5, 62, label="10k")
 
             # 100k: original conf≥58 pool, extended to 40 legs max.
             pool_100k = sorted(
@@ -1463,7 +1467,7 @@ class PredictionEngine:
                 key=_monster_sort_key,
             )
 
-            acca_100k = build_monster(pool_100k, 80000, 120000, 40, 8, 58, label="100k")
+            acca_100k = build_monster(pool_100k, 5000, 120000, 40, 8, 58, label="100k")
 
             return {
                 "acca_10k": acca_10k,

@@ -5,6 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.sitemaps.views import sitemap
 from django.http import HttpResponse
+from django.views.generic import RedirectView
 from football.sitemaps import StaticSitemap, FixtureSitemap
 from blog.sitemaps import BlogHomeSitemap, ArticleSitemap
 
@@ -34,6 +35,10 @@ urlpatterns = [
     path('', include('football.urls')),
     path('', include('pages.urls')),
     path('', include('blog.urls')),
+    path('ads.txt', RedirectView.as_view(
+        url='https://srv.adstxtmanager.com/19390/footiestat.com',
+        permanent=True
+    )),
 ] 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

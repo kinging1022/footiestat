@@ -1436,25 +1436,10 @@ class PredictionEngine:
                 market_tier = 0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1
                 return (market_tier, -f.get("selected_odds", 0), -f["confidence"])
 
-            # 10k: high-confidence pool (≥65), longer ticket up to 30 legs.
-            # Raising threshold from 62→65 ensures only the strongest picks
-            # enter the accumulator; more legs (20→30) compensates on big
-            # fixture days and allows the odds product to compound further.
+            # 10k: original conf≥62 pool, extended to 30 legs max.
+            # Legs sorted by odds DESC within each market tier so higher-value
+            # picks compound first and maximise the total product.
             pool_10k = sorted(
-                [
-                    f for f in scored
-                    if f.get("confidence", 0) >= 65
-                    and f.get("selected_market") != "Double Chance"
-                ],
-                key=_monster_sort_key,
-            )
-
-            acca_10k = build_monster(pool_10k, 8000, 12000, 30, 5, 65, label="10k")
-
-            # 100k: solid-confidence pool (≥62), longer ticket up to 55 legs.
-            # Raising threshold from 58→62 removes marginal picks; more legs
-            # (50→55) gives the compounder room to build past 80,000.
-            pool_100k = sorted(
                 [
                     f for f in scored
                     if f.get("confidence", 0) >= 62
@@ -1463,7 +1448,19 @@ class PredictionEngine:
                 key=_monster_sort_key,
             )
 
-            acca_100k = build_monster(pool_100k, 80000, 120000, 40, 8, 62, label="100k")
+            acca_10k = build_monster(pool_10k, 8000, 12000, 30, 5, 62, label="10k")
+
+            # 100k: original conf≥58 pool, extended to 40 legs max.
+            pool_100k = sorted(
+                [
+                    f for f in scored
+                    if f.get("confidence", 0) >= 58
+                    and f.get("selected_market") != "Double Chance"
+                ],
+                key=_monster_sort_key,
+            )
+
+            acca_100k = build_monster(pool_100k, 80000, 120000, 40, 8, 58, label="100k")
 
             return {
                 "acca_10k": acca_10k,

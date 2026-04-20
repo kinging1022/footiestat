@@ -1340,11 +1340,14 @@ class PredictionEngine:
                         and f.get("selected_market") != "Double Chance"
                         and 1.30 <= f.get("selected_odds", 0) <= 4.00
                     ]
-                    # Prefer Over 2.5 and BTTS first, then confidence DESC
+                    # Over2.5/BTTS first, then odds DESC, then confidence DESC.
+                    # Odds DESC is critical: picking higher-value legs early
+                    # compounds the product faster and reaches targets with fewer legs.
                     eligible.sort(
                         key=lambda f: (
                             0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes")
                             else 1,
+                            -f.get("selected_odds", 0),
                             -f["confidence"],
                         )
                     )

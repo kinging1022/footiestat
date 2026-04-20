@@ -227,18 +227,26 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
             if monster_result.get("insufficient_monster_fixtures"):
                 send_telegram(formatter.format_insufficient("monster accas"))
             else:
-                if monster_result.get("acca_10k"):
+                acca_10k  = monster_result.get("acca_10k")
+                acca_100k = monster_result.get("acca_100k")
+
+                if not acca_10k and not acca_100k:
+                    # Fixtures were available but combined odds fell below target.
+                    # This happens on low-action matchdays dominated by heavy favourites.
                     send_telegram(
-                        formatter.format_monster_acca(
-                            monster_result["acca_10k"], "10k"
-                        )
+                        "⚠️ Monster accas could not be built today.\n"
+                        "Odds were too short to reach target thresholds.\n"
+                        "Try again tomorrow when more value is available."
                     )
-                if monster_result.get("acca_100k"):
-                    send_telegram(
-                        formatter.format_monster_acca(
-                            monster_result["acca_100k"], "100k"
+                else:
+                    if acca_10k:
+                        send_telegram(
+                            formatter.format_monster_acca(acca_10k, "10k")
                         )
-                    )
+                    if acca_100k:
+                        send_telegram(
+                            formatter.format_monster_acca(acca_100k, "100k")
+                        )
 
     except Exception as exc:
         logger.critical(f"run_predict_pipeline unhandled error: {exc}", exc_info=True)

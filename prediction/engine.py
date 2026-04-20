@@ -1429,33 +1429,41 @@ class PredictionEngine:
             # with very different target-odds ranges so their leg selections will
             # naturally diverge.  Enforcing strict pool independence was the main
             # reason 100k could never be built (10k consumed too many fixtures).
+            # Sort key: Over2.5/BTTS first (carry higher odds ~1.70-1.90),
+            # then odds DESC within the same tier to maximise the compounding
+            # product, then confidence DESC as tiebreaker.
+            def _monster_sort_key(f):
+                market_tier = 0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1
+                return (market_tier, -f.get("selected_odds", 0), -f["confidence"])
+
+            # 10k: high-confidence pool (≥65), longer ticket up to 30 legs.
+            # Raising threshold from 62→65 ensures only the strongest picks
+            # enter the accumulator; more legs (20→30) compensates on big
+            # fixture days and allows the odds product to compound further.
             pool_10k = sorted(
+                [
+                    f for f in scored
+                    if f.get("confidence", 0) >= 65
+                    and f.get("selected_market") != "Double Chance"
+                ],
+                key=_monster_sort_key,
+            )
+
+            acca_10k = build_monster(pool_10k, 8000, 12000, 30, 5, 65, label="10k")
+
+            # 100k: solid-confidence pool (≥62), longer ticket up to 55 legs.
+            # Raising threshold from 58→62 removes marginal picks; more legs
+            # (50→55) gives the compounder room to build past 80,000.
+            pool_100k = sorted(
                 [
                     f for f in scored
                     if f.get("confidence", 0) >= 62
                     and f.get("selected_market") != "Double Chance"
                 ],
-                key=lambda f: (
-                    0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1,
-                    -f["confidence"],
-                ),
+                key=_monster_sort_key,
             )
 
-            acca_10k = build_monster(pool_10k, 8000, 12000, 20, 5, 62, label="10k")
-
-            pool_100k = sorted(
-                [
-                    f for f in scored
-                    if f.get("confidence", 0) >= 58
-                    and f.get("selected_market") != "Double Chance"
-                ],
-                key=lambda f: (
-                    0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1,
-                    -f["confidence"],
-                ),
-            )
-
-            acca_100k = build_monster(pool_100k, 80000, 120000, 50, 8, 58, label="100k")
+            acca_100k = build_monster(pool_100k, 80000, 120000, 40, 8, 62, label="100k")
 
             return {
                 "acca_10k": acca_10k,

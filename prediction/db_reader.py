@@ -64,10 +64,20 @@ class DBReader:
         try:
             now = timezone.now()
 
+            # Small mode: require full processing (all 5 stages done).
+            # Monster mode: only require advanced_stats to be computed —
+            # detailed_stats (stage 3) is never used by the prediction pipeline
+            # and is the slowest stage, so fixtures 3-7 days out often have all
+            # the data we need but are still blocked on it.
+            if mode == "monster":
+                ingestion_filter = {"ingestion__needs_advanced_stats": False}
+            else:
+                ingestion_filter = {"ingestion__is_fully_processed": True}
+
             qs = Fixture.objects.filter(
                 date__gte=now + timedelta(hours=1),
                 status=Fixture.STATUS_NS,
-                ingestion__is_fully_processed=True,
+                **ingestion_filter,
             ).select_related(
                 "league",
                 "league__country",

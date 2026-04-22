@@ -113,6 +113,12 @@ class DBReader:
                             f"Skipping fixture {fixture.id} — blacklisted country: {country_name}"
                         )
                         continue
+                    if is_reserve_team(fixture.home_team.name) or is_reserve_team(fixture.away_team.name):
+                        logger.debug(
+                            f"Skipped reserve/youth team fixture (small): "
+                            f"{fixture.home_team.name} vs {fixture.away_team.name}"
+                        )
+                        continue
 
                 adv = getattr(fixture, "advanced_stats", None)
                 if adv is None:

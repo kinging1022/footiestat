@@ -420,8 +420,10 @@ class PredictionEngine:
                 )
                 return False, "REJECTED_WIN:H2H_BIAS"
 
-            # Low H2H win rate → confidence penalty
-            if h2h_win_rate < 0.35 and (sub_score - 20) < 55:
+            # Low H2H win rate → confidence penalty.
+            # Raised to 0.40: a team winning only 35-39 % of H2H shows no real
+            # dominance — the fixture is volatile and a straight win pick is unreliable.
+            if h2h_win_rate < 0.40 and (sub_score - 20) < 55:
                 logger.debug(
                     "REJECTED_WIN:H2H_BIAS — %s H2H win rate %.0f%% < 35%%, "
                     "penalized sub=%d fixture=%s",
@@ -853,7 +855,9 @@ class PredictionEngine:
                 s2 = 4
 
             # Signal 3 — H2H (15 pts max)
-            if h2h:
+            # Require >= 3 matches before trusting the win rate; a single match
+            # can give a 100% rate and inflate the score to max unfairly.
+            if h2h and len(h2h) >= 3:
                 team_name = (
                     fixture["home_team_name"]
                     if favored == "home"
@@ -1072,6 +1076,18 @@ class PredictionEngine:
                 for candidate in candidates_sorted:
                     # Hard confidence gate — no exceptions
                     if candidate["confidence"] < 60:
+                        continue
+                    # Market-specific confidence floors: BTTS is inherently riskier
+                    # (both teams must score) so it needs a higher bar. Over/1X2
+                    # at 60-61 rarely provide enough edge to justify acca inclusion.
+                    market = candidate.get("selected_market", "")
+                    if market == "BTTS Yes" and candidate["confidence"] < 65:
+                        continue
+                    if market in ("Over 2.5", "1X2") and candidate["confidence"] < 62:
+                        continue
+                    # Claude DOWNGRADE + BTTS = exclude. If Claude flagged it as
+                    # risky/uncertain, compounding it in an acca is the wrong call.
+                    if market == "BTTS Yes" and candidate.get("verdict") == "DOWNGRADE":
                         continue
                     if candidate["league_id"] in used_leagues:
                         continue

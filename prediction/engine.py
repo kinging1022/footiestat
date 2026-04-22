@@ -1448,22 +1448,32 @@ class PredictionEngine:
             # with very different target-odds ranges so their leg selections will
             # naturally diverge.  Enforcing strict pool independence was the main
             # reason 100k could never be built (10k consumed too many fixtures).
-            # Sort key: Over2.5/BTTS first (carry higher odds ~1.70-1.90),
-            # then odds DESC within the same tier to maximise the compounding
-            # product, then confidence DESC as tiebreaker.
+            # Sort key: confidence first (high confidence always wins),
+            # then within the same confidence bracket prefer Over2.5/BTTS
+            # (higher odds compound faster), then odds DESC as final tiebreaker.
+            # Previously market_tier was first which caused low-confidence BTTS
+            # to rank above high-confidence 1X2 picks — wrong with a large pool.
             def _monster_sort_key(f):
                 market_tier = 0 if f.get("selected_market") in ("Over 2.5", "BTTS Yes") else 1
-                return (market_tier, -f.get("selected_odds", 0), -f["confidence"])
+                return (-f["confidence"], market_tier, -f.get("selected_odds", 0))
 
-            # 10k: original conf≥62 pool, extended to 30 legs max.
-            # Legs sorted by odds DESC within each market tier so higher-value
-            # picks compound first and maximise the total product.
+            def _monster_eligible(f, min_conf):
+                """Apply per-market confidence floors to the monster pool."""
+                if f.get("confidence", 0) < min_conf:
+                    return False
+                if f.get("selected_market") == "Double Chance":
+                    return False
+                # BTTS needs same higher bar as small accas — riskier market
+                if f.get("selected_market") == "BTTS Yes" and f.get("confidence", 0) < 65:
+                    return False
+                # Exclude DOWNGRADE + BTTS from monster legs too
+                if f.get("selected_market") == "BTTS Yes" and f.get("verdict") == "DOWNGRADE":
+                    return False
+                return True
+
+            # 10k: conf≥62 pool (BTTS floored at 65), 30 legs max.
             pool_10k = sorted(
-                [
-                    f for f in scored
-                    if f.get("confidence", 0) >= 62
-                    and f.get("selected_market") != "Double Chance"
-                ],
+                [f for f in scored if _monster_eligible(f, 62)],
                 key=_monster_sort_key,
             )
 
@@ -1473,17 +1483,13 @@ class PredictionEngine:
             # ensure the pipeline never silently returns nothing.
             acca_10k = build_monster(pool_10k, 500, 12000, 30, 5, 62, label="10k")
 
-            # 100k: original conf≥58 pool, extended to 40 legs max.
+            # 100k: conf≥62 pool (same floor as 10k — 58 was too permissive
+            # with a large fixture pool, letting weak picks crowd out good ones).
             pool_100k = sorted(
-                [
-                    f for f in scored
-                    if f.get("confidence", 0) >= 58
-                    and f.get("selected_market") != "Double Chance"
-                ],
+                [f for f in scored if _monster_eligible(f, 62)],
                 key=_monster_sort_key,
             )
-
-            acca_100k = build_monster(pool_100k, 5000, 120000, 40, 8, 58, label="100k")
+            acca_100k = build_monster(pool_100k, 5000, 120000, 40, 8, 62, label="100k")
 
             return {
                 "acca_10k": acca_10k,

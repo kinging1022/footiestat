@@ -773,16 +773,6 @@ class PredictionEngine:
                         "odds": dc, "no_double_chance": True,
                     })
 
-            # Asian Handicap fallback
-            home_rate = self._calc_home_away_rate(standings, "home")
-            if home_rate >= 0.70:
-                home_odds = odds_data.get("match_winner", {}).get("home", 0)
-                if home_odds and 1.30 <= home_odds <= 3.50:
-                    markets.append({
-                        "market": "Asian Handicap", "pick": "Home -0.5",
-                        "odds": home_odds, "no_double_chance": False,
-                    })
-
         except Exception:
             logger.exception(f"get_qualifying_markets failed for fixture {fid}")
 

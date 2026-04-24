@@ -126,6 +126,8 @@ class Formatter:
                 f"Odds: {leg.get('selected_odds', 0):.2f} | "
                 f"Conf: {leg.get('adjusted_confidence', leg.get('confidence', 0))}"
             )
+            if leg.get("claude_reason"):
+                lines.append(f"   Claude: {leg.get('claude_reason')}")
         lines.append("━━━━━━━━━━━━━━━━━━")
         start_date = (
             sorted_legs[0].get("kickoff_date_short", "")

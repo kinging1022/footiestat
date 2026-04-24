@@ -25,7 +25,7 @@ BLACKLIST_COUNTRIES = {
     "Kyrgyzstan", "Turkmenistan", "Mongolia", "Bhutan",
     "Maldives", "Macau", "Bangladesh", "Cambodia",
     "Laos", "Myanmar", "Papua New Guinea", "Fiji",
-    "Vanuatu", "Samoa",
+    "Vanuatu", "Samoa","suriname"
 }
 
 BLACKLIST_ROUND_KEYWORDS = [

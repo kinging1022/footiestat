@@ -593,14 +593,19 @@ class PredictionEngine:
                 return False, "REJECTED_OVER:H2H_GOALS"
 
         # ── Check 4: Match Context ─────────────────────────────────────
-        # A heavy home favourite (odds < 1.40) may sit back once ahead,
-        # suppressing total goals.  Apply a -10 penalty.
-        home_win_odds = odds_data.get("match_winner", {}).get("home", 0)
-        if home_win_odds and 1.0 < home_win_odds < 1.40 and (sub_score - 10) < 50:
+        # A heavy favourite (either side, odds < 1.40) is likely to control
+        # the game and may park once ahead, suppressing total goals.
+        # Apply a -10 penalty when either team is priced below 1.40.
+        mw_ctx = odds_data.get("match_winner", {})
+        _mw_candidates = [
+            o for o in [mw_ctx.get("home", 0), mw_ctx.get("away", 0)] if o > 0
+        ]
+        heavy_fav_odds = min(_mw_candidates) if _mw_candidates else 0
+        if heavy_fav_odds and 1.0 < heavy_fav_odds < 1.40 and (sub_score - 10) < 50:
             logger.debug(
-                "REJECTED_OVER:MATCH_CONTEXT — heavy home favourite odds=%.2f, "
+                "REJECTED_OVER:MATCH_CONTEXT — heavy favourite odds=%.2f, "
                 "penalized sub=%d fixture=%s",
-                home_win_odds, sub_score - 10, fid,
+                heavy_fav_odds, sub_score - 10, fid,
             )
             return False, "REJECTED_OVER:MATCH_CONTEXT"
 
@@ -726,8 +731,18 @@ class PredictionEngine:
                 max_gap = 8 if total_teams_in_table >= 16 else 5
                 rank_gap_blocks_btts = rank_gap >= max_gap
 
+            # Heavy market favourite guard — block BTTS when the match winner
+            # market prices one team at ≤ 1.40 (implies ~71 %+ win probability).
+            # The API prediction % can be unreliable for smaller leagues; the
+            # market odds are a more honest signal.  A 1.40 favourite almost
+            # never concedes, so BTTS has no real edge regardless of form data.
+            mw = odds_data.get("match_winner", {})
+            mw_odds = [o for o in [mw.get("home", 0), mw.get("away", 0)] if o > 0]
+            heavy_favourite_blocks_btts = bool(mw_odds) and min(mw_odds) <= 1.40
+
             if (
                 not rank_gap_blocks_btts
+                and not heavy_favourite_blocks_btts
                 and max_win_pct <= 52      # tightened from 55 — clear favourites rarely concede
                 and btts_home_attack
                 and btts_away_attack
@@ -1067,13 +1082,11 @@ class PredictionEngine:
                     # Hard confidence gate — no exceptions
                     if candidate["confidence"] < 60:
                         continue
-                    # Market-specific confidence floors: BTTS is inherently riskier
-                    # (both teams must score) so it needs a higher bar. Over/1X2
-                    # at 60-61 rarely provide enough edge to justify acca inclusion.
+                    # BTTS requires a higher confidence bar — both teams must score,
+                    # making it inherently riskier than directional markets.
+                    # Over 2.5 and 1X2 are fine at the base 60 threshold.
                     market = candidate.get("selected_market", "")
                     if market == "BTTS Yes" and candidate["confidence"] < 65:
-                        continue
-                    if market in ("Over 2.5", "1X2") and candidate["confidence"] < 62:
                         continue
                     # Claude DOWNGRADE + BTTS = exclude. If Claude flagged it as
                     # risky/uncertain, compounding it in an acca is the wrong call.

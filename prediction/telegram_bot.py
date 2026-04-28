@@ -13,7 +13,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 from prediction.formatter import Formatter
 from prediction.result_tracker import ResultTracker
-from prediction.tasks import check_and_update_results, run_predict_pipeline
+from prediction.tasks import check_and_update_results, run_draw_pipeline, run_predict_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,25 @@ async def big(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="❌ Failed to start pipeline. Check logs.",
+            )
+        except Exception:
+            pass
+
+
+async def draw(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /draw — daily and longshot draw picks."""
+    try:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="⏳ Finding draw picks...",
+        )
+        run_draw_pipeline.delay()
+    except Exception:
+        logger.exception("/draw handler failed")
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="❌ Failed to start draw pipeline. Check logs.",
             )
         except Exception:
             pass
@@ -186,6 +205,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 "/predict — 10 daily accas + best + monsters\n"
                 "/best    — Best acca only (today)\n"
                 "/big     — 10k + 100k monster accas (7 days)\n"
+                "/draw    — Daily + longshot draw picks (5–13)\n"
                 "/results — Check and settle today's results\n"
                 "/record  — Win/loss record per product\n"
                 "/weekly  — Weekly performance summary\n"
@@ -208,6 +228,7 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("predict", predict))
     app.add_handler(CommandHandler("best", best))
     app.add_handler(CommandHandler("big", big))
+    app.add_handler(CommandHandler("draw", draw))
     app.add_handler(CommandHandler("results", results))
     app.add_handler(CommandHandler("record", record))
     app.add_handler(CommandHandler("weekly", weekly))

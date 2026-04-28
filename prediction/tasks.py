@@ -26,10 +26,12 @@ logger = logging.getLogger(__name__)
 REDIS_CLIENT = redis.from_url(settings.CELERY_BROKER_URL, decode_responses=True)
 
 CACHE_KEYS = {
-    "small":         "prediction:cache:small:accas",
-    "daily_monster": "prediction:cache:daily:monster",
-    "10k":           "prediction:cache:monster:10k",
-    "100k":          "prediction:cache:monster:100k",
+    "small":          "prediction:cache:small:accas",
+    "daily_monster":  "prediction:cache:daily:monster",
+    "10k":            "prediction:cache:monster:10k",
+    "100k":           "prediction:cache:monster:100k",
+    "draws":          "prediction:cache:draws",
+    "draw_monsters":  "prediction:cache:draw:monsters",
 }
 
 
@@ -251,6 +253,95 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
     except Exception as exc:
         logger.critical(f"run_predict_pipeline unhandled error: {exc}", exc_info=True)
         send_telegram("❌ Pipeline error. Check logs.")
+        raise self.retry(exc=exc, countdown=60)
+
+
+@shared_task(bind=True, max_retries=2)
+def run_draw_pipeline(self) -> None:
+    """
+    Draw prediction pipeline.
+
+    Sends 4 messages to Telegram:
+      1. Header
+      2. Daily + longshot individual picks  (today, 5–13 picks)
+      3. Short (8–30x) + Long (50–300x) draw accas  (today)
+      4. 1K / 10K / 100K draw monster accas  (7-day window)
+    """
+    db = DBReader()
+    api = APICaller()
+    formatter = Formatter()
+
+    try:
+        from prediction.draw_engine import DrawEngine
+        draw_engine = DrawEngine()
+
+        # ── Daily draw picks + short/long accas (today) ──────────────────
+        cached_daily = REDIS_CLIENT.get(CACHE_KEYS["draws"])
+        if cached_daily:
+            logger.info("draw pipeline: serving daily picks from cache")
+            daily_result = json.loads(cached_daily)
+        else:
+            start = time.time()
+            fixtures = db.get_todays_fixtures("small")
+            logger.info("draw pipeline: %d daily fixtures", len(fixtures))
+
+            standings    = db.get_batch_standings(fixtures)
+            h2h_data     = db.get_batch_h2h(fixtures)
+            fixture_ids  = [f["fixture_id"] for f in fixtures]
+            predictions  = api.get_batch_predictions(fixture_ids)
+            odds         = api.get_batch_odds(fixture_ids)
+
+            scored_daily = draw_engine.score_all_draws(
+                fixtures, standings, h2h_data, predictions, odds
+            )
+            picks_result = draw_engine.build_draw_picks(scored_daily)
+            accas_result = draw_engine.build_draw_accas(scored_daily)
+            daily_result = {**picks_result, "accas": accas_result}
+
+            REDIS_CLIENT.setex(
+                CACHE_KEYS["draws"],
+                settings.PREDICTION_CACHE_TTL_SMALL,
+                json.dumps(daily_result, default=str),
+            )
+            logger.info("draw pipeline: daily done in %.1fs", time.time() - start)
+
+        # ── Monster draw accas (7-day window) ────────────────────────────
+        cached_monsters = REDIS_CLIENT.get(CACHE_KEYS["draw_monsters"])
+        if cached_monsters:
+            logger.info("draw pipeline: serving draw monsters from cache")
+            monsters_result = json.loads(cached_monsters)
+        else:
+            start = time.time()
+            m_fixtures   = db.get_todays_fixtures("monster")
+            logger.info("draw pipeline: %d monster fixtures", len(m_fixtures))
+
+            m_standings   = db.get_batch_standings(m_fixtures)
+            m_h2h         = db.get_batch_h2h(m_fixtures)
+            m_ids         = [f["fixture_id"] for f in m_fixtures]
+            m_predictions = api.get_batch_predictions(m_ids)
+            m_odds        = api.get_batch_odds(m_ids)
+
+            scored_monster = draw_engine.score_all_draws(
+                m_fixtures, m_standings, m_h2h, m_predictions, m_odds
+            )
+            monsters_result = draw_engine.build_draw_monster_accas(scored_monster)
+
+            REDIS_CLIENT.setex(
+                CACHE_KEYS["draw_monsters"],
+                settings.PREDICTION_CACHE_TTL_MONSTER,
+                json.dumps(monsters_result, default=str),
+            )
+            logger.info("draw pipeline: monsters done in %.1fs", time.time() - start)
+
+        # ── Send to Telegram ──────────────────────────────────────────────
+        send_telegram(formatter.format_header())
+        send_telegram(formatter.format_draw_picks(daily_result))
+        send_telegram(formatter.format_draw_accas(daily_result.get("accas", {})))
+        send_telegram(formatter.format_draw_monster_accas(monsters_result))
+
+    except Exception as exc:
+        logger.critical("run_draw_pipeline unhandled error: %s", exc, exc_info=True)
+        send_telegram("❌ Draw pipeline error. Check logs.")
         raise self.retry(exc=exc, countdown=60)
 
 

@@ -212,6 +212,200 @@ class Formatter:
             lines.append(f"  {signal}")
         return "\n".join(lines)
 
+    def format_draw_picks(self, result: dict) -> str:
+        """Format daily and longshot draw picks as a plain-text Telegram message."""
+        daily = result.get("daily", [])
+        longshot = result.get("longshot", [])
+        total = result.get("total", 0)
+
+        if result.get("insufficient") or total == 0:
+            return (
+                "🤝 Draw Picks\n"
+                "━━━━━━━━━━━━━━━━━━\n"
+                "Not enough qualifying draw picks today.\n"
+                "Try again tomorrow."
+            )
+
+        lines = [
+            "🤝 DRAW PICKS",
+            "━━━━━━━━━━━━━━━━━━",
+            f"Total: {total} picks  ({len(daily)} daily + {len(longshot)} longshots)",
+        ]
+
+        if daily:
+            lines.append("")
+            lines.append("📊 DAILY DRAWS")
+            lines.append("━━━━━━━━━━━━━━━━━━")
+            for i, pick in enumerate(daily, 1):
+                lines.append(
+                    f"{i}. {pick.get('home_team_name', '')} vs "
+                    f"{pick.get('away_team_name', '')}"
+                )
+                lines.append(
+                    f"   Draw: {pick.get('draw_odds', 0):.2f} | "
+                    f"API%: {pick.get('draw_pct', 0):.0f}% | "
+                    f"Score: {pick.get('draw_score', 0)}"
+                )
+                h2h_rate = pick.get("h2h_draw_rate")
+                rec_draws = pick.get("combined_recent_draws", 0)
+                detail = f"   H2H: {h2h_rate:.0%}" if h2h_rate is not None else "   H2H: n/a"
+                detail += f" | Recent draws: {rec_draws}/10"
+                lines.append(detail)
+                lines.append(f"   {pick.get('league_name', '')} — {pick.get('kickoff_str', '')}")
+
+        if longshot:
+            lines.append("")
+            lines.append("🎯 LONGSHOT DRAWS")
+            lines.append("━━━━━━━━━━━━━━━━━━")
+            for i, pick in enumerate(longshot, 1):
+                lines.append(
+                    f"{i}. {pick.get('home_team_name', '')} vs "
+                    f"{pick.get('away_team_name', '')}"
+                )
+                lines.append(
+                    f"   Draw: {pick.get('draw_odds', 0):.2f} | "
+                    f"API%: {pick.get('draw_pct', 0):.0f}% | "
+                    f"Score: {pick.get('draw_score', 0)}"
+                )
+                h2h_rate = pick.get("h2h_draw_rate")
+                rec_draws = pick.get("combined_recent_draws", 0)
+                detail = f"   H2H: {h2h_rate:.0%}" if h2h_rate is not None else "   H2H: n/a"
+                detail += f" | Recent draws: {rec_draws}/10"
+                lines.append(detail)
+                lines.append(f"   {pick.get('league_name', '')} — {pick.get('kickoff_str', '')}")
+
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━")
+        lines.append("⚠️ Draws are high-variance — use small stakes.")
+        return "\n".join(lines)
+
+    def format_draw_accas(self, result: dict) -> str:
+        """
+        Format the short (8x–30x) and long (50x–300x) draw accumulator bets.
+        """
+        short = result.get("short_acca")
+        long_ = result.get("long_acca")
+
+        if not short and not long_:
+            return (
+                "🤝 Draw Accas\n"
+                "━━━━━━━━━━━━━━━━━━\n"
+                "Not enough qualifying draw fixtures\n"
+                "to build accas today."
+            )
+
+        lines = ["🤝 DRAW ACCAS", "━━━━━━━━━━━━━━━━━━"]
+
+        if short:
+            lines.append(
+                f"⚡ SHORT DRAW ACCA — Total Odds: {short['total_odds']:.2f}x"
+            )
+            lines.append("━━━━━━━━━━━━━━━━━━")
+            for i, leg in enumerate(short["legs"], 1):
+                lines.append(
+                    f"{i}. {leg.get('home_team_name', '')} vs "
+                    f"{leg.get('away_team_name', '')}"
+                )
+                lines.append(
+                    f"   Draw: {leg.get('draw_odds', 0):.2f} | "
+                    f"API%: {leg.get('draw_pct', 0):.0f}% | "
+                    f"Score: {leg.get('draw_score', 0)}"
+                )
+                lines.append(f"   {leg.get('league_name', '')} — {leg.get('kickoff_str', '')}")
+            lines.append(
+                f"Legs: {short['n_legs']} | Avg Score: {short['avg_score']}"
+            )
+
+        if long_:
+            if short:
+                lines.append("")
+            lines.append(
+                f"🔥 LONG DRAW ACCA — Total Odds: {long_['total_odds']:.2f}x"
+            )
+            lines.append("━━━━━━━━━━━━━━━━━━")
+            for i, leg in enumerate(long_["legs"], 1):
+                lines.append(
+                    f"{i}. {leg.get('home_team_name', '')} vs "
+                    f"{leg.get('away_team_name', '')}"
+                )
+                lines.append(
+                    f"   Draw: {leg.get('draw_odds', 0):.2f} | "
+                    f"API%: {leg.get('draw_pct', 0):.0f}% | "
+                    f"Score: {leg.get('draw_score', 0)}"
+                )
+                lines.append(f"   {leg.get('league_name', '')} — {leg.get('kickoff_str', '')}")
+            lines.append(
+                f"Legs: {long_['n_legs']} | Avg Score: {long_['avg_score']}"
+            )
+
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━")
+        lines.append("⚠️ Draw accas are high-risk — use very small stakes.")
+        return "\n".join(lines)
+
+    def format_draw_monster_accas(self, result: dict) -> str:
+        """Format 1K / 10K / 100K draw monster accumulators."""
+        acca_1k   = result.get("acca_1k")
+        acca_10k  = result.get("acca_10k")
+        acca_100k = result.get("acca_100k")
+
+        if result.get("insufficient") or not any([acca_1k, acca_10k, acca_100k]):
+            return (
+                "💀 Draw Monster Accas\n"
+                "━━━━━━━━━━━━━━━━━━\n"
+                "Not enough draw fixtures to build\n"
+                "monster accas. Try again tomorrow."
+            )
+
+        configs = [
+            ("acca_1k",   acca_1k,   "💀", "1K DRAW MONSTER"),
+            ("acca_10k",  acca_10k,  "☠️", "10K DRAW MONSTER"),
+            ("acca_100k", acca_100k, "🔱", "100K DRAW MONSTER"),
+        ]
+
+        lines = ["💀 DRAW MONSTER ACCAS", "━━━━━━━━━━━━━━━━━━"]
+        first = True
+        for _, acca, emoji, title in configs:
+            if not acca:
+                continue
+            if not first:
+                lines.append("")
+            first = False
+            lines.append(
+                f"{emoji} {title} — Total Odds: {acca['total_odds']:,.2f}x"
+            )
+            lines.append("━━━━━━━━━━━━━━━━━━")
+            sorted_legs = sorted(acca["legs"], key=lambda l: l.get("date", ""))
+            for i, leg in enumerate(sorted_legs, 1):
+                lines.append(
+                    f"{i}. [{leg.get('kickoff_date_short', '')}] "
+                    f"{leg.get('home_team_name', '')} vs "
+                    f"{leg.get('away_team_name', '')}"
+                )
+                lines.append(
+                    f"   Draw: {leg.get('draw_odds', 0):.2f} | "
+                    f"API%: {leg.get('draw_pct', 0):.0f}% | "
+                    f"Score: {leg.get('draw_score', 0)}"
+                )
+                lines.append(f"   {leg.get('league_name', '')}")
+            start = acca.get("start_date") or (
+                sorted_legs[0].get("kickoff_date_short", "") if sorted_legs else ""
+            )
+            end = acca.get("end_date") or (
+                sorted_legs[-1].get("kickoff_date_short", "") if sorted_legs else ""
+            )
+            lines.append(f"📅 {start} – {end}")
+            lines.append(
+                f"🌍 {acca['n_leagues']} leagues | "
+                f"Legs: {acca['n_legs']} | "
+                f"Avg Score: {acca['avg_score']}"
+            )
+
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━")
+        lines.append("⚠️ Monster draw accas — micro-stakes only.")
+        return "\n".join(lines)
+
     def format_weekly_summary(self, summary: dict) -> str:
         """Format the weekly performance summary for all products."""
         lines = ["📈 Weekly Summary", "━━━━━━━━━━━━━━━━━━"]

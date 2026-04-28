@@ -16,6 +16,7 @@ from django.conf import settings
 
 from prediction.api_caller import APICaller
 from prediction.db_reader import DBReader
+from prediction.draw_engine import DrawEngine
 from prediction.engine import PredictionEngine
 from prediction.formatter import Formatter
 from prediction.result_tracker import ResultTracker
@@ -272,7 +273,6 @@ def run_draw_pipeline(self) -> None:
     formatter = Formatter()
 
     try:
-        from prediction.draw_engine import DrawEngine
         draw_engine = DrawEngine()
 
         # ── Daily draw picks + short/long accas (today) ──────────────────

@@ -5,8 +5,8 @@ Uses shared_task only. No new Celery app instance.
 All pipeline state is cached in Redis. Telegram messages are split at 4000 chars.
 """
 
-import base64
 import difflib
+import re
 import json
 import logging
 import time
@@ -408,61 +408,91 @@ def _reply(chat_id: int, text: str) -> None:
         logger.error("_reply: failed for chat %s — %s", chat_id, exc)
 
 
-def _download_photo(file_id: str) -> bytes:
-    token = settings.TELEGRAM_BOT_TOKEN
-    base  = f'https://api.telegram.org/bot{token}'
-    resp  = requests.get(f'{base}/getFile', params={'file_id': file_id}, timeout=10)
-    resp.raise_for_status()
-    file_path = resp.json()['result']['file_path']
-    dl = requests.get(f'https://api.telegram.org/file/bot{token}/{file_path}', timeout=30)
-    dl.raise_for_status()
-    return dl.content
+_BET_FORMAT_HELP = (
+    "📋 Send your bets as text, one per line:\n\n"
+    "<code>Arsenal vs Chelsea home 1.85</code>\n"
+    "<code>Napoli vs Bologna away 2.10</code>\n"
+    "<code>Benfica vs Braga draw 3.20</code>\n"
+    "<code>Man City vs Liverpool over 2.5 1.95</code>\n"
+    "<code>PSG vs Lyon btts 1.70</code>\n\n"
+    "Format: <b>Home vs Away selection [line] odds</b>\n"
+    "Markets: home | draw | away | over | under | btts"
+)
+
+_KEYWORDS = ['home', 'draw', 'away', 'over', 'under', 'btts']
+_KW_PATTERN = re.compile(r'\b(' + '|'.join(_KEYWORDS) + r')\b', re.IGNORECASE)
 
 
-def _extract_bets(image_bytes: bytes) -> list[dict]:
-    import anthropic  # noqa: PLC0415
+def _parse_text_bets(text: str) -> list[dict]:
+    """
+    Parse plain-text bet lines into structured dicts.
 
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-    b64    = base64.b64encode(image_bytes).decode()
+    Supported formats (one bet per line):
+      Rayo Vallecano vs Girona home 1.69
+      Napoli vs Bologna away 2.10
+      Benfica vs Braga draw 3.20
+      CD Tondela vs Moreirense over 1.5 1.34
+      Gil Vicente vs FC Arouca over 2 1.40
+      PSG vs Lyon btts 1.70
+      PSG vs Lyon btts no 2.10
+    """
+    bets = []
+    for raw_line in text.strip().splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
 
-    prompt = """Extract every individual bet from this bet slip image.
+        # Split on " vs " to separate home team from the rest
+        parts = re.split(r'\s+vs\s+', line, maxsplit=1, flags=re.IGNORECASE)
+        if len(parts) != 2:
+            continue
 
-Return a JSON object with key "bets" — an array where each element is:
-{
-  "home_team": "<team name exactly as shown on slip>",
-  "away_team": "<team name exactly as shown on slip>",
-  "market": "1x2 | btts | over_under | dnb | double_chance",
-  "selection": "home | draw | away | yes | no | over | under",
-  "odds": <decimal number>,
-  "line": <number or null>
-}
+        home_team = parts[0].strip()
+        rest = parts[1].strip()
 
-Rules:
-- 1X2: selection is "home", "draw", or "away"
-- BTTS: selection is "yes" or "no"
-- over/under: selection is "over" or "under", line is the goal threshold (e.g. 2.5)
-- If a field is unclear, make your best guess
-- Return only valid JSON, no other text"""
+        # Find the first market keyword in the rest of the line
+        kw_match = _KW_PATTERN.search(rest)
+        if not kw_match:
+            continue
 
-    response = client.messages.create(
-        model='claude-sonnet-4-6',
-        max_tokens=1000,
-        messages=[{
-            'role': 'user',
-            'content': [
-                {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': b64}},
-                {'type': 'text',  'text': prompt},
-            ],
-        }],
-    )
+        away_team = rest[:kw_match.start()].strip()
+        keyword   = kw_match.group(1).lower()
+        after_kw  = rest[kw_match.end():].strip()
+        tokens    = after_kw.split()
 
-    raw = response.content[0].text.strip()
-    if raw.startswith('```'):
-        raw = raw.split('```', 2)[1]
-        if raw.startswith('json'):
-            raw = raw[4:]
-        raw = raw.rsplit('```', 1)[0].strip()
-    return json.loads(raw).get('bets', [])
+        try:
+            if keyword in ('home', 'draw', 'away'):
+                odds = float(tokens[0])
+                bets.append({'home_team': home_team, 'away_team': away_team,
+                             'market': '1x2', 'selection': keyword,
+                             'odds': odds, 'line': None})
+
+            elif keyword in ('over', 'under'):
+                if len(tokens) >= 2:
+                    goal_line = float(tokens[0])
+                    odds      = float(tokens[1])
+                else:
+                    goal_line = 2.5
+                    odds      = float(tokens[0])
+                bets.append({'home_team': home_team, 'away_team': away_team,
+                             'market': 'over_under', 'selection': keyword,
+                             'odds': odds, 'line': goal_line})
+
+            elif keyword == 'btts':
+                if tokens and tokens[0].lower() in ('yes', 'no'):
+                    selection = tokens[0].lower()
+                    odds      = float(tokens[1])
+                else:
+                    selection = 'yes'
+                    odds      = float(tokens[0])
+                bets.append({'home_team': home_team, 'away_team': away_team,
+                             'market': 'btts', 'selection': selection,
+                             'odds': odds, 'line': None})
+
+        except (ValueError, IndexError):
+            continue  # skip malformed lines
+
+    return bets
 
 
 def _find_team(raw_name: str):
@@ -702,26 +732,16 @@ def _format_betslip_reply(results: list[dict]) -> str:
 
 
 @shared_task(name='prediction.validate_bet_slip', bind=True, max_retries=0)
-def validate_bet_slip(self, file_id: str, chat_id: int) -> None:
+def validate_bet_slip(self, text: str, chat_id: int) -> None:
     """
     Bet slip validation pipeline.
-    Triggered by a photo message in the Telegram bot.
+    Triggered by a text message — one bet per line.
     No DB writes. Always replies to chat_id.
     """
-    try:
-        image_bytes = _download_photo(file_id)
-    except Exception as exc:
-        _reply(chat_id, f'❌ Could not download image: {exc}')
-        return
-
-    try:
-        bets = _extract_bets(image_bytes)
-    except Exception as exc:
-        _reply(chat_id, f'❌ Could not read the slip: {exc}\nTry a clearer photo.')
-        return
+    bets = _parse_text_bets(text)
 
     if not bets:
-        _reply(chat_id, '❌ No bets found. Send a clearer photo of the bet slip.')
+        _reply(chat_id, f'❌ Could not parse any bets.\n\n{_BET_FORMAT_HELP}')
         return
 
     results: list[dict] = []

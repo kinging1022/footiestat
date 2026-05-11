@@ -221,34 +221,36 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # Bet slip handlers
 # ------------------------------------------------------------------
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle photo messages — triggers the bet slip validation pipeline."""
-    from prediction.tasks import validate_bet_slip  # noqa: PLC0415
+async def handle_bets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle plain-text bet messages.
+
+    Each line should be: Home vs Away selection [line] odds
+    Example:
+      Arsenal vs Chelsea home 1.85
+      Napoli vs Bologna over 2.5 1.95
+      PSG vs Lyon btts 1.70
+    """
+    from prediction.tasks import validate_bet_slip, _BET_FORMAT_HELP  # noqa: PLC0415
 
     chat_id = update.effective_chat.id
+    text    = (update.message.text or '').strip()
+
+    if not text:
+        await context.bot.send_message(chat_id=chat_id, text=_BET_FORMAT_HELP,
+                                       parse_mode='HTML')
+        return
+
     try:
-        photos  = update.message.photo
-        file_id = max(photos, key=lambda p: p.file_size).file_id
-        await context.bot.send_message(chat_id=chat_id, text='⏳ Reading your bet slip...')
-        validate_bet_slip.delay(file_id, chat_id)
+        await context.bot.send_message(chat_id=chat_id, text='⏳ Validating your bets...')
+        validate_bet_slip.delay(text, chat_id)
     except Exception:
-        logger.exception("handle_photo failed")
+        logger.exception("handle_bets failed")
         try:
             await context.bot.send_message(chat_id=chat_id,
                                            text='❌ Something went wrong. Try again.')
         except Exception:
             pass
-
-
-async def handle_non_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Catch-all for non-command text messages."""
-    try:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='📷 Send a photo of your bet slip to validate it.',
-        )
-    except Exception:
-        logger.exception("handle_non_photo failed")
 
 
 # ------------------------------------------------------------------
@@ -268,6 +270,5 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("weekly", weekly))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(MessageHandler(~filters.PHOTO & ~filters.COMMAND, handle_non_photo))
+    app.add_handler(MessageHandler(~filters.COMMAND, handle_bets))
     return app

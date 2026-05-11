@@ -5,6 +5,7 @@ Uses shared_task only. No new Celery app instance.
 All pipeline state is cached in Redis. Telegram messages are split at 4000 chars.
 """
 
+import base64
 import difflib
 import re
 import json
@@ -408,6 +409,96 @@ def _reply(chat_id: int, text: str) -> None:
         logger.error("_reply: failed for chat %s — %s", chat_id, exc)
 
 
+def _download_photo(file_id: str) -> bytes:
+    token = settings.TELEGRAM_BOT_TOKEN
+    base  = f'https://api.telegram.org/bot{token}'
+    resp  = requests.get(f'{base}/getFile', params={'file_id': file_id}, timeout=10)
+    resp.raise_for_status()
+    file_path = resp.json()['result']['file_path']
+    dl = requests.get(f'https://api.telegram.org/file/bot{token}/{file_path}', timeout=30)
+    dl.raise_for_status()
+    return dl.content
+
+
+def _extract_bets(image_bytes: bytes) -> list[dict]:
+    """
+    Use Claude Vision to extract bets from a Sportybet slip image.
+
+    Sportybet layout per bet:
+      Line 1 — Selection + odds   e.g. "Home 1.33"  /  "Over 1.5 1.29"  /  "Yes 1.44"
+      Line 2 — Match              e.g. "Union Gilloise vs Yellow-Red KV Mechelen"
+      Line 3 — Market label       e.g. "1X2 - 2UP"  /  "Over/Under"  /  "GG/NG"
+
+    Returns only bets mappable to: 1x2 | over_under | btts.
+    All other markets (handicap, both-halves, clean-sheet, cup, combined) are skipped.
+    """
+    import anthropic  # noqa: PLC0415
+
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    b64    = base64.b64encode(image_bytes).decode()
+
+    prompt = """This is a Sportybet bet slip image. Each selection appears in a 3-line block:
+  Line 1: selection name and odds  (e.g. "Home 1.33", "Over 1.5 1.29", "Yes 1.44", "Away 1.36")
+  Line 2: match                    (e.g. "Arsenal vs Chelsea")
+  Line 3: market label             (e.g. "1X2 - 1UP", "Over/Under", "GG/NG", "Both Halves Under 1.5")
+
+Your task: extract every bet and map it to ONE of these three supported markets:
+
+  1. 1x2 (match winner)
+     - Selection line says "Home", "Away", or "Draw"
+     - Market label contains "1X2" (ignore the "-1UP"/"-2UP" suffix — those are just display variants)
+     - Set market="1x2", selection="home"/"draw"/"away"
+
+  2. over_under (goals over/under)
+     - Selection line says "Over X.X" or "Under X.X"
+     - Market label contains "Over/Under"
+     - Set market="over_under", selection="over"/"under", line=the goal number (e.g. 1.5, 2.5, 2.0)
+
+  3. btts (both teams to score)
+     - Selection line says "Yes" or "No" AND market label says "GG/NG" or "Both Teams Score"
+     - Set market="btts", selection="yes"/"no"
+
+SKIP these — do not include them in output:
+  - Handicap / Asian Handicap / Handicap 0:1 / Home (+0.5)
+  - Both Halves / First Half / Second Half markets
+  - "Home Team to Win to Nil" / clean sheet markets
+  - "Draw or Over 2.5" / combined markets
+  - "To Win the Final" / cup/tournament markets
+  - Any "Yes/No" where the market label is NOT "GG/NG" or "Both Teams Score"
+
+Return ONLY valid JSON — no explanation, no markdown, no code fences:
+{"bets": [{"home_team": "...", "away_team": "...", "market": "1x2|over_under|btts", "selection": "home|draw|away|over|under|yes|no", "odds": 1.33, "line": 1.5}]}
+
+"line" is required for over_under (e.g. 1.5, 2.0, 2.5), null for everything else."""
+
+    response = client.messages.create(
+        model='claude-sonnet-4-6',
+        max_tokens=4000,
+        messages=[{
+            'role': 'user',
+            'content': [
+                {'type': 'image', 'source': {'type': 'base64',
+                                             'media_type': 'image/jpeg', 'data': b64}},
+                {'type': 'text', 'text': prompt},
+            ],
+        }],
+    )
+
+    raw = response.content[0].text.strip()
+    # Strip markdown fences if Claude wraps the output
+    if raw.startswith('```'):
+        raw = raw.split('```', 2)[1]
+        if raw.startswith('json'):
+            raw = raw[4:]
+        raw = raw.rsplit('```', 1)[0].strip()
+    # Extract the outermost JSON object to handle any surrounding text
+    start = raw.find('{')
+    end   = raw.rfind('}') + 1
+    if start >= 0 and end > start:
+        raw = raw[start:end]
+    return json.loads(raw).get('bets', [])
+
+
 _BET_FORMAT_HELP = (
     "📋 Send your bets as text, one per line:\n\n"
     "<code>Arsenal vs Chelsea home 1.85</code>\n"
@@ -732,17 +823,50 @@ def _format_betslip_reply(results: list[dict]) -> str:
 
 
 @shared_task(name='prediction.validate_bet_slip', bind=True, max_retries=0)
-def validate_bet_slip(self, text: str, chat_id: int) -> None:
+def validate_bet_slip(self, file_id: str, chat_id: int) -> None:
     """
-    Bet slip validation pipeline.
-    Triggered by a text message — one bet per line.
-    No DB writes. Always replies to chat_id.
+    Bet slip validation — photo path (primary).
+    Downloads the Sportybet slip image and extracts bets via Claude Vision.
+    """
+    try:
+        image_bytes = _download_photo(file_id)
+    except Exception as exc:
+        _reply(chat_id, f'❌ Could not download image: {exc}')
+        return
+
+    try:
+        bets = _extract_bets(image_bytes)
+    except Exception as exc:
+        _reply(chat_id, f'❌ Could not read the slip: {exc}\nTry a clearer photo.')
+        return
+
+    if not bets:
+        _reply(chat_id,
+               '❌ No supported bets found.\n'
+               'Supported markets: 1X2, Over/Under, GG/NG.\n'
+               'Handicap, Both Halves, and combined markets are skipped.')
+        return
+
+    _run_betslip_validation(bets, chat_id)
+
+
+@shared_task(name='prediction.validate_bet_slip_text', bind=True, max_retries=0)
+def validate_bet_slip_text(self, text: str, chat_id: int) -> None:
+    """
+    Bet slip validation — text path (fallback).
+    User types bets manually, one per line.
     """
     bets = _parse_text_bets(text)
 
     if not bets:
         _reply(chat_id, f'❌ Could not parse any bets.\n\n{_BET_FORMAT_HELP}')
         return
+
+    _run_betslip_validation(bets, chat_id)
+
+
+def _run_betslip_validation(bets: list[dict], chat_id: int) -> None:
+    """Shared validation loop used by both photo and text tasks."""
 
     results: list[dict] = []
 

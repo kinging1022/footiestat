@@ -48,3 +48,8 @@ vine==5.1.0
 wcwidth==0.2.13
 anthropic>=0.25.0
 python-telegram-bot[job-queue]>=20.0
+# Social app
+google-api-python-client>=2.100.0
+praw>=7.7.0
+edge-tts>=6.1.9
+moviepy>=1.0.3

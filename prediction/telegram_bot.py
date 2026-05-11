@@ -9,7 +9,7 @@ import logging
 
 from django.conf import settings
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from prediction.formatter import Formatter
 from prediction.result_tracker import ResultTracker
@@ -218,6 +218,40 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 # ------------------------------------------------------------------
+# Bet slip handlers
+# ------------------------------------------------------------------
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle photo messages — triggers the bet slip validation pipeline."""
+    from prediction.tasks import validate_bet_slip  # noqa: PLC0415
+
+    chat_id = update.effective_chat.id
+    try:
+        photos  = update.message.photo
+        file_id = max(photos, key=lambda p: p.file_size).file_id
+        await context.bot.send_message(chat_id=chat_id, text='⏳ Reading your bet slip...')
+        validate_bet_slip.delay(file_id, chat_id)
+    except Exception:
+        logger.exception("handle_photo failed")
+        try:
+            await context.bot.send_message(chat_id=chat_id,
+                                           text='❌ Something went wrong. Try again.')
+        except Exception:
+            pass
+
+
+async def handle_non_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Catch-all for non-command text messages."""
+    try:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='📷 Send a photo of your bet slip to validate it.',
+        )
+    except Exception:
+        logger.exception("handle_non_photo failed")
+
+
+# ------------------------------------------------------------------
 # App factory
 # ------------------------------------------------------------------
 
@@ -234,4 +268,6 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("weekly", weekly))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(~filters.PHOTO & ~filters.COMMAND, handle_non_photo))
     return app

@@ -35,6 +35,7 @@ urlpatterns = [
     path('', include('football.urls')),
     path('', include('pages.urls')),
     path('', include('blog.urls')),
+    path('social/', include('social.urls', namespace='social')),
     path('ads.txt', RedirectView.as_view(
         url='https://srv.adstxtmanager.com/19390/footiestat.com',
         permanent=True

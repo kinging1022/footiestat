@@ -79,7 +79,6 @@ INSTALLED_APPS = [
     'blog',
     'pages',
     'prediction',
-    
 
 
 

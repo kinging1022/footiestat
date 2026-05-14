@@ -60,16 +60,18 @@ class DBReader:
         mode='small': fixtures in the next 24 hours.
         mode='monster': fixtures within PREDICTION_MONSTER_DAYS_AHEAD days,
                         limited to priority leagues.
+        mode='win': fixtures within PREDICTION_MONSTER_DAYS_AHEAD days,
+                    all leagues (no priority filter) — guards handled by WinEngine.
         """
         try:
             now = timezone.now()
 
             # Small mode: require full processing (all 5 stages done).
-            # Monster mode: only require advanced_stats to be computed —
+            # Monster/win mode: only require advanced_stats to be computed —
             # detailed_stats (stage 3) is never used by the prediction pipeline
             # and is the slowest stage, so fixtures 3-7 days out often have all
             # the data we need but are still blocked on it.
-            if mode == "monster":
+            if mode in ("monster", "win"):
                 ingestion_filter = {"ingestion__needs_advanced_stats": False}
             else:
                 ingestion_filter = {"ingestion__is_fully_processed": True}
@@ -95,13 +97,21 @@ class DBReader:
                     ),
                     league__priority__lte=settings.PREDICTION_PRIORITY_THRESHOLD,
                 )
+            elif mode == "win":
+                # All leagues — WinEngine's strict odds gate (≤1.30) and
+                # statistical guards replace the priority filter.
+                qs = qs.filter(
+                    date__lte=now + timedelta(
+                        days=settings.PREDICTION_MONSTER_DAYS_AHEAD
+                    ),
+                )
 
             results: list[dict] = []
             for fixture in qs:
-                # Monster pipeline: enforce round and reserve filters so only
-                # clean, regular-season priority fixtures are included.
+                # Monster/win pipeline: enforce round and reserve filters so only
+                # clean, regular-season fixtures are included.
                 # Daily pipeline (small): cast a wide net — Claude handles quality.
-                if mode == "monster":
+                if mode in ("monster", "win"):
                     if fixture.round:
                         round_lower = fixture.round.lower()
                         if any(kw.lower() in round_lower for kw in BLACKLIST_ROUND_KEYWORDS):

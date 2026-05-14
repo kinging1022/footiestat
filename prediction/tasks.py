@@ -303,7 +303,7 @@ def run_win_pipeline(self) -> None:
             result = json.loads(cached)
         else:
             start = time.time()
-            fixtures = db.get_todays_fixtures("monster")
+            fixtures = db.get_todays_fixtures("win")
             logger.info("win pipeline: %d fixtures", len(fixtures))
 
             standings   = db.get_batch_standings(fixtures)

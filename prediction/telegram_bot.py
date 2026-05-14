@@ -13,7 +13,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 
 from prediction.formatter import Formatter
 from prediction.result_tracker import ResultTracker
-from prediction.tasks import check_and_update_results, run_draw_pipeline, run_predict_pipeline
+from prediction.tasks import check_and_update_results, run_predict_pipeline, run_win_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -95,20 +95,21 @@ async def big(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             pass
 
 
-async def draw(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /draw — daily and longshot draw picks."""
+
+async def win(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /win — heavy-favourite win picks and accumulators."""
     try:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="⏳ Finding draw picks...",
+            text="⏳ Finding heavy-favourite win picks (≤1.30)...",
         )
-        run_draw_pipeline.delay()
+        run_win_pipeline.delay()
     except Exception:
-        logger.exception("/draw handler failed")
+        logger.exception("/win handler failed")
         try:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="❌ Failed to start draw pipeline. Check logs.",
+                text="❌ Failed to start win pipeline. Check logs.",
             )
         except Exception:
             pass
@@ -205,7 +206,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 "/predict — 10 daily accas + best + monsters\n"
                 "/best    — Best acca only (today)\n"
                 "/big     — 10k + 100k monster accas (7 days)\n"
-                "/draw    — Daily + longshot draw picks (5–13)\n"
+                "/win     — Heavy-favourite wins (≤1.30): picks + 100x/1K/100K accas\n"
                 "/results — Check and settle today's results\n"
                 "/record  — Win/loss record per product\n"
                 "/weekly  — Weekly performance summary\n"
@@ -220,23 +221,6 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # ------------------------------------------------------------------
 # Bet slip handlers
 # ------------------------------------------------------------------
-
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle Sportybet slip photos — primary bet validation path."""
-    from prediction.tasks import validate_bet_slip  # noqa: PLC0415
-
-    chat_id = update.effective_chat.id
-    try:
-        file_id = max(update.message.photo, key=lambda p: p.file_size).file_id
-        await context.bot.send_message(chat_id=chat_id, text='⏳ Reading your bet slip...')
-        validate_bet_slip.delay(file_id, chat_id)
-    except Exception:
-        logger.exception("handle_photo failed")
-        try:
-            await context.bot.send_message(chat_id=chat_id,
-                                           text='❌ Something went wrong. Try again.')
-        except Exception:
-            pass
 
 
 async def handle_bets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -277,12 +261,11 @@ def create_bot_app() -> Application:
     app.add_handler(CommandHandler("predict", predict))
     app.add_handler(CommandHandler("best", best))
     app.add_handler(CommandHandler("big", big))
-    app.add_handler(CommandHandler("draw", draw))
+    app.add_handler(CommandHandler("win", win))
     app.add_handler(CommandHandler("results", results))
     app.add_handler(CommandHandler("record", record))
     app.add_handler(CommandHandler("weekly", weekly))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_bets))
     return app

@@ -5,7 +5,6 @@ Uses shared_task only. No new Celery app instance.
 All pipeline state is cached in Redis. Telegram messages are split at 4000 chars.
 """
 
-import base64
 import difflib
 import re
 import json
@@ -19,11 +18,11 @@ from django.conf import settings
 
 from prediction.api_caller import APICaller
 from prediction.db_reader import DBReader
-from prediction.draw_engine import DrawEngine
 from prediction.engine import PredictionEngine
 from prediction.formatter import Formatter
 from prediction.result_tracker import ResultTracker
 from prediction.validator import ClaudeValidator
+from prediction.win_engine import WinEngine
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +33,7 @@ CACHE_KEYS = {
     "daily_monster":  "prediction:cache:daily:monster",
     "10k":            "prediction:cache:monster:10k",
     "100k":           "prediction:cache:monster:100k",
-    "draws":          "prediction:cache:draws",
-    "draw_monsters":  "prediction:cache:draw:monsters",
+    "wins":           "prediction:cache:wins",
 }
 
 
@@ -260,93 +258,6 @@ def run_predict_pipeline(self, output_type: str = "all") -> None:
         raise self.retry(exc=exc, countdown=60)
 
 
-@shared_task(bind=True, max_retries=2)
-def run_draw_pipeline(self) -> None:
-    """
-    Draw prediction pipeline.
-
-    Sends 4 messages to Telegram:
-      1. Header
-      2. Daily + longshot individual picks  (today, 5–13 picks)
-      3. Short (8–30x) + Long (50–300x) draw accas  (today)
-      4. 1K / 10K / 100K draw monster accas  (7-day window)
-    """
-    db = DBReader()
-    api = APICaller()
-    formatter = Formatter()
-
-    try:
-        draw_engine = DrawEngine()
-
-        # ── Daily draw picks + short/long accas (today) ──────────────────
-        cached_daily = REDIS_CLIENT.get(CACHE_KEYS["draws"])
-        if cached_daily:
-            logger.info("draw pipeline: serving daily picks from cache")
-            daily_result = json.loads(cached_daily)
-        else:
-            start = time.time()
-            fixtures = db.get_todays_fixtures("small")
-            logger.info("draw pipeline: %d daily fixtures", len(fixtures))
-
-            standings    = db.get_batch_standings(fixtures)
-            h2h_data     = db.get_batch_h2h(fixtures)
-            fixture_ids  = [f["fixture_id"] for f in fixtures]
-            predictions  = api.get_batch_predictions(fixture_ids)
-            odds         = api.get_batch_odds(fixture_ids)
-
-            scored_daily = draw_engine.score_all_draws(
-                fixtures, standings, h2h_data, predictions, odds
-            )
-            picks_result = draw_engine.build_draw_picks(scored_daily)
-            accas_result = draw_engine.build_draw_accas(scored_daily)
-            daily_result = {**picks_result, "accas": accas_result}
-
-            REDIS_CLIENT.setex(
-                CACHE_KEYS["draws"],
-                settings.PREDICTION_CACHE_TTL_SMALL,
-                json.dumps(daily_result, default=str),
-            )
-            logger.info("draw pipeline: daily done in %.1fs", time.time() - start)
-
-        # ── Monster draw accas (7-day window) ────────────────────────────
-        cached_monsters = REDIS_CLIENT.get(CACHE_KEYS["draw_monsters"])
-        if cached_monsters:
-            logger.info("draw pipeline: serving draw monsters from cache")
-            monsters_result = json.loads(cached_monsters)
-        else:
-            start = time.time()
-            m_fixtures   = db.get_todays_fixtures("monster")
-            logger.info("draw pipeline: %d monster fixtures", len(m_fixtures))
-
-            m_standings   = db.get_batch_standings(m_fixtures)
-            m_h2h         = db.get_batch_h2h(m_fixtures)
-            m_ids         = [f["fixture_id"] for f in m_fixtures]
-            m_predictions = api.get_batch_predictions(m_ids)
-            m_odds        = api.get_batch_odds(m_ids)
-
-            scored_monster = draw_engine.score_all_draws(
-                m_fixtures, m_standings, m_h2h, m_predictions, m_odds
-            )
-            monsters_result = draw_engine.build_draw_monster_accas(scored_monster)
-
-            REDIS_CLIENT.setex(
-                CACHE_KEYS["draw_monsters"],
-                settings.PREDICTION_CACHE_TTL_MONSTER,
-                json.dumps(monsters_result, default=str),
-            )
-            logger.info("draw pipeline: monsters done in %.1fs", time.time() - start)
-
-        # ── Send to Telegram ──────────────────────────────────────────────
-        send_telegram(formatter.format_header())
-        send_telegram(formatter.format_draw_picks(daily_result))
-        send_telegram(formatter.format_draw_accas(daily_result.get("accas", {})))
-        send_telegram(formatter.format_draw_monster_accas(monsters_result))
-
-    except Exception as exc:
-        logger.critical("run_draw_pipeline unhandled error: %s", exc, exc_info=True)
-        send_telegram("❌ Draw pipeline error. Check logs.")
-        raise self.retry(exc=exc, countdown=60)
-
 
 @shared_task
 def check_and_update_results() -> None:
@@ -369,9 +280,60 @@ def check_and_update_results() -> None:
         logger.exception("check_and_update_results failed")
 
 
-# ===========================================================================
-# Bet Slip Validation
-# ===========================================================================
+@shared_task(bind=True, max_retries=2)
+def run_win_pipeline(self) -> None:
+    """
+    Heavy-favourite win pipeline.
+
+    Sends 3 messages to Telegram:
+      1. Header + up to 50 individual win picks
+      2. 100x and 1K accumulators
+      3. 100K accumulator (when buildable)
+    """
+    db = DBReader()
+    api = APICaller()
+    formatter = Formatter()
+
+    try:
+        win_engine = WinEngine()
+
+        cached = REDIS_CLIENT.get(CACHE_KEYS["wins"])
+        if cached:
+            logger.info("win pipeline: serving from cache")
+            result = json.loads(cached)
+        else:
+            start = time.time()
+            fixtures = db.get_todays_fixtures("monster")
+            logger.info("win pipeline: %d fixtures", len(fixtures))
+
+            standings   = db.get_batch_standings(fixtures)
+            h2h_data    = db.get_batch_h2h(fixtures)
+            fixture_ids = [f["fixture_id"] for f in fixtures]
+            predictions = api.get_batch_predictions(fixture_ids)
+            odds        = api.get_batch_odds(fixture_ids)
+
+            scored = win_engine.score_all_wins(
+                fixtures, standings, h2h_data, predictions, odds
+            )
+            accas = win_engine.build_win_accas(scored)
+            result = {"picks": scored, "accas": accas}
+
+            REDIS_CLIENT.setex(
+                CACHE_KEYS["wins"],
+                settings.PREDICTION_CACHE_TTL_MONSTER,
+                json.dumps(result, default=str),
+            )
+            logger.info("win pipeline: done in %.1fs", time.time() - start)
+
+        send_telegram(formatter.format_header())
+        send_telegram(formatter.format_win_picks(result["picks"]))
+        send_telegram(formatter.format_win_accas(result["accas"]))
+
+    except Exception as exc:
+        logger.critical("run_win_pipeline unhandled error: %s", exc, exc_info=True)
+        send_telegram("❌ Win pipeline error. Check logs.")
+        raise self.retry(exc=exc, countdown=60)
+
 
 _REJECTION_REASONS = {
     'REJECTED_WIN:FORM':         'Poor venue form — win rate below threshold in last 5',
@@ -395,7 +357,6 @@ _DOWNGRADE_THRESHOLD = 55
 
 
 def _reply(chat_id: int, text: str) -> None:
-    """Send an HTML message to a specific Telegram chat. Used for betslip replies."""
     token = settings.TELEGRAM_BOT_TOKEN
     if not token:
         return
@@ -407,96 +368,6 @@ def _reply(chat_id: int, text: str) -> None:
         )
     except Exception as exc:
         logger.error("_reply: failed for chat %s — %s", chat_id, exc)
-
-
-def _download_photo(file_id: str) -> bytes:
-    token = settings.TELEGRAM_BOT_TOKEN
-    base  = f'https://api.telegram.org/bot{token}'
-    resp  = requests.get(f'{base}/getFile', params={'file_id': file_id}, timeout=10)
-    resp.raise_for_status()
-    file_path = resp.json()['result']['file_path']
-    dl = requests.get(f'https://api.telegram.org/file/bot{token}/{file_path}', timeout=30)
-    dl.raise_for_status()
-    return dl.content
-
-
-def _extract_bets(image_bytes: bytes) -> list[dict]:
-    """
-    Use Claude Vision to extract bets from a Sportybet slip image.
-
-    Sportybet layout per bet:
-      Line 1 — Selection + odds   e.g. "Home 1.33"  /  "Over 1.5 1.29"  /  "Yes 1.44"
-      Line 2 — Match              e.g. "Union Gilloise vs Yellow-Red KV Mechelen"
-      Line 3 — Market label       e.g. "1X2 - 2UP"  /  "Over/Under"  /  "GG/NG"
-
-    Returns only bets mappable to: 1x2 | over_under | btts.
-    All other markets (handicap, both-halves, clean-sheet, cup, combined) are skipped.
-    """
-    import anthropic  # noqa: PLC0415
-
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-    b64    = base64.b64encode(image_bytes).decode()
-
-    prompt = """This is a Sportybet bet slip image. Each selection appears in a 3-line block:
-  Line 1: selection name and odds  (e.g. "Home 1.33", "Over 1.5 1.29", "Yes 1.44", "Away 1.36")
-  Line 2: match                    (e.g. "Arsenal vs Chelsea")
-  Line 3: market label             (e.g. "1X2 - 1UP", "Over/Under", "GG/NG", "Both Halves Under 1.5")
-
-Your task: extract every bet and map it to ONE of these three supported markets:
-
-  1. 1x2 (match winner)
-     - Selection line says "Home", "Away", or "Draw"
-     - Market label contains "1X2" (ignore the "-1UP"/"-2UP" suffix — those are just display variants)
-     - Set market="1x2", selection="home"/"draw"/"away"
-
-  2. over_under (goals over/under)
-     - Selection line says "Over X.X" or "Under X.X"
-     - Market label contains "Over/Under"
-     - Set market="over_under", selection="over"/"under", line=the goal number (e.g. 1.5, 2.5, 2.0)
-
-  3. btts (both teams to score)
-     - Selection line says "Yes" or "No" AND market label says "GG/NG" or "Both Teams Score"
-     - Set market="btts", selection="yes"/"no"
-
-SKIP these — do not include them in output:
-  - Handicap / Asian Handicap / Handicap 0:1 / Home (+0.5)
-  - Both Halves / First Half / Second Half markets
-  - "Home Team to Win to Nil" / clean sheet markets
-  - "Draw or Over 2.5" / combined markets
-  - "To Win the Final" / cup/tournament markets
-  - Any "Yes/No" where the market label is NOT "GG/NG" or "Both Teams Score"
-
-Return ONLY valid JSON — no explanation, no markdown, no code fences:
-{"bets": [{"home_team": "...", "away_team": "...", "market": "1x2|over_under|btts", "selection": "home|draw|away|over|under|yes|no", "odds": 1.33, "line": 1.5}]}
-
-"line" is required for over_under (e.g. 1.5, 2.0, 2.5), null for everything else."""
-
-    response = client.messages.create(
-        model='claude-sonnet-4-6',
-        max_tokens=4000,
-        messages=[{
-            'role': 'user',
-            'content': [
-                {'type': 'image', 'source': {'type': 'base64',
-                                             'media_type': 'image/jpeg', 'data': b64}},
-                {'type': 'text', 'text': prompt},
-            ],
-        }],
-    )
-
-    raw = response.content[0].text.strip()
-    # Strip markdown fences if Claude wraps the output
-    if raw.startswith('```'):
-        raw = raw.split('```', 2)[1]
-        if raw.startswith('json'):
-            raw = raw[4:]
-        raw = raw.rsplit('```', 1)[0].strip()
-    # Extract the outermost JSON object to handle any surrounding text
-    start = raw.find('{')
-    end   = raw.rfind('}') + 1
-    if start >= 0 and end > start:
-        raw = raw[start:end]
-    return json.loads(raw).get('bets', [])
 
 
 _BET_FORMAT_HELP = (
@@ -822,34 +693,6 @@ def _format_betslip_reply(results: list[dict]) -> str:
     return header + '\n\n'.join(lines)
 
 
-@shared_task(name='prediction.validate_bet_slip', bind=True, max_retries=0)
-def validate_bet_slip(self, file_id: str, chat_id: int) -> None:
-    """
-    Bet slip validation — photo path (primary).
-    Downloads the Sportybet slip image and extracts bets via Claude Vision.
-    """
-    try:
-        image_bytes = _download_photo(file_id)
-    except Exception as exc:
-        _reply(chat_id, f'❌ Could not download image: {exc}')
-        return
-
-    try:
-        bets = _extract_bets(image_bytes)
-    except Exception as exc:
-        _reply(chat_id, f'❌ Could not read the slip: {exc}\nTry a clearer photo.')
-        return
-
-    if not bets:
-        _reply(chat_id,
-               '❌ No supported bets found.\n'
-               'Supported markets: 1X2, Over/Under, GG/NG.\n'
-               'Handicap, Both Halves, and combined markets are skipped.')
-        return
-
-    _run_betslip_validation(bets, chat_id)
-
-
 @shared_task(name='prediction.validate_bet_slip_text', bind=True, max_retries=0)
 def validate_bet_slip_text(self, text: str, chat_id: int) -> None:
     """
@@ -899,7 +742,7 @@ def _run_betslip_validation(bets: list[dict], chat_id: int) -> None:
         try:
             outcome = _run_betslip_pipeline(bet, fixture)
         except Exception as exc:
-            logger.error("validate_bet_slip: pipeline failed fixture %s — %s", fixture.id, exc)
+            logger.error("betslip pipeline failed fixture %s — %s", fixture.id, exc)
             results.append({**base, 'verdict': 'remove', 'error': 'Pipeline error.'})
             continue
 

@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     'blog',
     'pages',
     'prediction',
+    
 
 
 
@@ -237,4 +238,5 @@ PREDICTION_CACHE_TTL_MONSTER = int(os.getenv("PREDICTION_CACHE_TTL_MONSTER", 216
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+
 

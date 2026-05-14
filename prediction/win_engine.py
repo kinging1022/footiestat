@@ -21,8 +21,7 @@ class WinEngine:
     MAX_PICKS = 50
     MAX_ODDS = 1.30
     MIN_ODDS = 1.05
-    SCORE_THRESHOLD = 60    # minimum win_score to qualify as a pick
-    MIN_WIN_PCT = 50         # API prediction floor for the favoured side
+    SCORE_THRESHOLD = 52    # minimum win_score to qualify as a pick
 
     # ------------------------------------------------------------------
     # Single-fixture win scoring
@@ -78,16 +77,25 @@ class WinEngine:
                 else fixture.get("away_team_name", "")
             )
 
-            # API win probability hard floor
-            if win_pct < self.MIN_WIN_PCT:
+            # Reject only when the API explicitly says the OTHER side is more
+            # likely to win (win_pct > 0 but clearly wrong direction).
+            # win_pct == 0 means no API data — the odds ≤ 1.30 are the signal.
+            other_pct = away_pct if side == "home" else home_pct
+            if win_pct > 0 and win_pct < 40 and other_pct > win_pct:
                 logger.debug(
-                    "score_win: fixture %s rejected — %s win_pct=%.1f < %d",
-                    fid, side, win_pct, self.MIN_WIN_PCT,
+                    "score_win: fixture %s rejected — API contradicts pick "
+                    "(%s win_pct=%.1f vs other=%.1f)",
+                    fid, side, win_pct, other_pct,
                 )
                 return None
 
             # ── Signal 1: API Win Probability (30 pts max) ───────────────
-            if win_pct >= 75:
+            # Odds ≤ 1.30 implies ~77 %+ market win probability.
+            # When the API has no prediction (win_pct == 0) the market is the
+            # signal — award a neutral-positive score matching ~60 % confidence.
+            if win_pct == 0:
+                s1 = 14  # no API data — rely on other signals
+            elif win_pct >= 75:
                 s1 = 30
             elif win_pct >= 65:
                 s1 = 24
@@ -95,8 +103,10 @@ class WinEngine:
                 s1 = 18
             elif win_pct >= 50:
                 s1 = 12
+            elif win_pct >= 40:
+                s1 = 8
             else:
-                s1 = 6
+                s1 = 4
 
             # ── Signal 2: Venue-Context Recent Form (25 pts max) ─────────
             # Home pick → home team's last 5 at home.
@@ -232,6 +242,17 @@ class WinEngine:
                 return None
 
             # ── Hard guards ───────────────────────────────────────────────
+
+            # Guard 0: venue form floor — when we have enough context data,
+            # the team must win at least 40% of games in this venue.
+            # Prevents high-API-probability teams with genuinely poor venue
+            # records slipping through purely on their s1 score.
+            if n_ctx >= 4 and (ctx_wins / n_ctx) < 0.40:
+                logger.debug(
+                    "score_win: fixture %s — %s venue win rate %.0f%% < 40%%, rejecting",
+                    fid, team_name, (ctx_wins / n_ctx) * 100,
+                )
+                return None
 
             # Guard 1: lost last 3 consecutive H2H → no confidence backing a win
             if len(valid_h2h) >= 3:

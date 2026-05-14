@@ -233,7 +233,7 @@ class Formatter:
             return (
                 "🏆 Win Picks\n"
                 "━━━━━━━━━━━━━━━━━━\n"
-                "No heavy-favourite win picks found today.\n"
+                "No heavy-favourite win picks found.\n"
                 "Try again tomorrow."
             )
 
@@ -249,21 +249,22 @@ class Formatter:
             away = pick.get("away_team_name", "")
             team = pick.get("win_team", "")
             label = "HOME WIN" if side == "home" else "AWAY WIN"
+            date = pick.get("kickoff_date_short", pick.get("kickoff_str", "")[:11])
             lines.append(
-                f"{i}. {home} vs {away}"
+                f"{i}. [{date}]  {home} vs {away}"
             )
             lines.append(
                 f"   {label}: {team}  @{pick.get('win_odds', 0):.2f} "
-                f"| API%: {pick.get('win_pct', 0):.0f}% "
                 f"| Score: {pick.get('win_score', 0)}"
+                + (f" | API%: {pick.get('win_pct', 0):.0f}%" if pick.get("win_pct") else "")
             )
             h2h_r = pick.get("h2h_win_rate")
             venue_r = pick.get("venue_win_rate")
-            detail = f"   H2H: {h2h_r:.0%}" if h2h_r is not None else "   H2H: n/a"
+            detail = f"   H2H W%: {h2h_r:.0%}" if h2h_r is not None else "   H2H: n/a"
             if venue_r is not None:
                 detail += f" | Venue W%: {venue_r:.0%}"
             lines.append(detail)
-            lines.append(f"   {pick.get('league_name', '')} — {pick.get('kickoff_str', '')}")
+            lines.append(f"   {pick.get('league_name', '')}")
 
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━")
@@ -298,9 +299,9 @@ class Formatter:
             if not first:
                 lines.append("")
             first = False
-            lines.append(
-                f"{emoji} {title} — Total Odds: {acca['total_odds']:,.2f}x"
-            )
+            total_odds = acca["total_odds"]
+            lines.append(f"{emoji} {title}")
+            lines.append(f"   TOTAL ODDS: {total_odds:,.2f}x")
             lines.append("━━━━━━━━━━━━━━━━━━")
             sorted_legs = sorted(
                 acca["legs"],
@@ -310,8 +311,9 @@ class Formatter:
                 side = leg.get("win_side", "")
                 team = leg.get("win_team", "")
                 label = "H" if side == "home" else "A"
+                date = leg.get("kickoff_date_short", "")
                 lines.append(
-                    f"{i}. [{leg.get('kickoff_date_short', '')}] "
+                    f"{i}. [{date}]  "
                     f"{leg.get('home_team_name', '')} vs "
                     f"{leg.get('away_team_name', '')}"
                 )

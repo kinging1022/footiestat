@@ -1,11 +1,11 @@
 """
-win_engine.py — Heavy-favourite home/away win prediction engine.
+win_engine.py — "Either Team Wins" (1 or 2 / no-draw) prediction engine.
 
-Only considers fixtures where one side is priced at ≤ 1.30 (heavy favourite).
-Strictly validates that the match ends in a clean team win — no draws included.
+Finds matches where a draw is unlikely — either team could win.
+Bet type: Double Chance "12" (Home/Away), i.e. the match will NOT end in a draw.
 
 Products:
-  - Up to 50 individual win picks  (sorted by confidence)
+  - Up to 50 individual "1 or 2" picks  (sorted by confidence)
   - 100x   accumulator  (~18 legs, target   80x–200x)
   - 1K     accumulator  (~28 legs, target  800x–2000x)
   - 100K   accumulator  (~40 legs, target 80000x–220000x)
@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 class WinEngine:
 
     MAX_PICKS = 50
-    MAX_ODDS = 1.30
-    MIN_ODDS = 1.05
-    SCORE_THRESHOLD = 52    # minimum win_score to qualify as a pick
+    MAX_DC_ODDS = 1.80    # Double Chance "12" upper bound
+    MIN_DC_ODDS = 1.20    # Double Chance "12" lower bound
+    SCORE_THRESHOLD = 50  # minimum win_score to qualify
 
     # ------------------------------------------------------------------
-    # Single-fixture win scoring
+    # Single-fixture scoring
     # ------------------------------------------------------------------
 
     def score_win(
@@ -36,10 +36,10 @@ class WinEngine:
         odds: dict,
     ) -> dict | None:
         """
-        Score a single fixture for heavy-favourite win probability.
+        Score a fixture for "either team wins" (no draw) probability.
 
-        Returns an enriched fixture dict with win_score, win_odds, win_side and
-        signal breakdown — or None if the fixture does not qualify.
+        Returns an enriched fixture dict with win_score, win_odds, draw_pct
+        and signal breakdown — or None if the fixture does not qualify.
         """
         fid = fixture.get("fixture_id")
         try:
@@ -51,186 +51,147 @@ class WinEngine:
             if not odds_data:
                 return None
 
-            home_odds = odds_data.get("match_winner", {}).get("home", 0)
-            away_odds = odds_data.get("match_winner", {}).get("away", 0)
+            dc_12 = odds_data.get("double_chance", {}).get("12", 0)
+            draw_odds = odds_data.get("match_winner", {}).get("draw", 0)
 
-            home_qualifies = bool(home_odds and self.MIN_ODDS <= home_odds <= self.MAX_ODDS)
-            away_qualifies = bool(away_odds and self.MIN_ODDS <= away_odds <= self.MAX_ODDS)
-
-            if not home_qualifies and not away_qualifies:
+            # Must have a "12" Double Chance market in a useful odds range
+            if not dc_12 or not (self.MIN_DC_ODDS <= dc_12 <= self.MAX_DC_ODDS):
                 return None
 
-            # When both qualify (rare), take the shorter odds — stronger favourite
-            if home_qualifies and away_qualifies:
-                side = "home" if home_odds <= away_odds else "away"
-            elif home_qualifies:
-                side = "home"
-            else:
-                side = "away"
+            # Draw priced below 2.00 means the market thinks draw is likely — skip
+            if draw_odds and draw_odds < 2.00:
+                return None
 
-            pick_odds = home_odds if side == "home" else away_odds
+            draw_pct = float(pred.get("draw_pct", 0) or 0)
             home_pct = float(pred.get("home_win_pct", 0) or 0)
             away_pct = float(pred.get("away_win_pct", 0) or 0)
-            win_pct = home_pct if side == "home" else away_pct
-            team_name = (
-                fixture.get("home_team_name", "") if side == "home"
-                else fixture.get("away_team_name", "")
-            )
+            combined_win_pct = home_pct + away_pct
 
-            # Reject only when the API explicitly says the OTHER side is more
-            # likely to win (win_pct > 0 but clearly wrong direction).
-            # win_pct == 0 means no API data — the odds ≤ 1.30 are the signal.
-            other_pct = away_pct if side == "home" else home_pct
-            if win_pct > 0 and win_pct < 40 and other_pct > win_pct:
+            # API explicitly says draw is the most likely outcome — skip
+            if draw_pct > 0 and draw_pct > home_pct and draw_pct > away_pct:
                 logger.debug(
-                    "score_win: fixture %s rejected — API contradicts pick "
-                    "(%s win_pct=%.1f vs other=%.1f)",
-                    fid, side, win_pct, other_pct,
+                    "score_win: fixture %s rejected — draw_pct=%.1f dominates "
+                    "(home=%.1f away=%.1f)",
+                    fid, draw_pct, home_pct, away_pct,
                 )
                 return None
 
-            # ── Signal 1: API Win Probability (30 pts max) ───────────────
-            # Odds ≤ 1.30 implies ~77 %+ market win probability.
-            # When the API has no prediction (win_pct == 0) the market is the
-            # signal — award a neutral-positive score matching ~60 % confidence.
-            if win_pct == 0:
+            # ── Signal 1: API draw probability (30 pts max) ──────────────
+            # Lower draw_pct → more likely a decisive result.
+            if draw_pct == 0:
                 s1 = 14  # no API data — rely on other signals
-            elif win_pct >= 75:
+            elif draw_pct <= 15:
                 s1 = 30
-            elif win_pct >= 65:
-                s1 = 24
-            elif win_pct >= 58:
+            elif draw_pct <= 20:
+                s1 = 25
+            elif draw_pct <= 25:
                 s1 = 18
-            elif win_pct >= 50:
+            elif draw_pct <= 30:
                 s1 = 12
-            elif win_pct >= 40:
-                s1 = 8
+            elif draw_pct <= 35:
+                s1 = 6
             else:
-                s1 = 4
+                s1 = 2
 
-            # ── Signal 2: Venue-Context Recent Form (25 pts max) ─────────
-            # Home pick → home team's last 5 at home.
-            # Away pick → away team's last 5 away.
-            if side == "home":
-                ctx_form = [
-                    m for m in adv.get("home_last_5_home_form", [])
-                    if isinstance(m, dict) and m.get("opponent") != "No data"
-                ]
-            else:
-                ctx_form = [
-                    m for m in adv.get("away_last_5_away_form", [])
-                    if isinstance(m, dict) and m.get("opponent") != "No data"
-                ]
-
-            n_ctx = len(ctx_form)
-            ctx_wins = sum(1 for m in ctx_form if m.get("result") == "W")
-
-            if n_ctx >= 4:
-                ctx_rate = ctx_wins / n_ctx
-                if ctx_rate >= 0.80:
-                    s2 = 25
-                elif ctx_rate >= 0.60:
-                    s2 = 19
-                elif ctx_rate >= 0.40:
-                    s2 = 12
-                else:
-                    s2 = 4
-            elif n_ctx >= 2:
-                s2 = 10
-            else:
-                s2 = 6
-
-            # ── Signal 3: H2H Win Rate (20 pts max) ──────────────────────
+            # ── Signal 2: H2H draw rate (20 pts max) ─────────────────────
             valid_h2h = [
                 m for m in (h2h or [])
                 if m.get("home_goals") is not None and m.get("away_goals") is not None
             ]
-            h2h_win_rate = 0.0
             h2h_draw_rate = 0.0
 
             if valid_h2h:
-                h2h_wins = 0
-                h2h_draws = 0
-                for m in valid_h2h:
-                    hg = m.get("home_goals") or 0
-                    ag = m.get("away_goals") or 0
-                    if hg == ag:
-                        h2h_draws += 1
-                    elif m.get("home_name") == team_name and hg > ag:
-                        h2h_wins += 1
-                    elif m.get("away_name") == team_name and ag > hg:
-                        h2h_wins += 1
-                n = len(valid_h2h)
-                h2h_win_rate = h2h_wins / n
-                h2h_draw_rate = h2h_draws / n
+                h2h_draws = sum(
+                    1 for m in valid_h2h
+                    if (m.get("home_goals") or 0) == (m.get("away_goals") or 0)
+                )
+                h2h_draw_rate = h2h_draws / len(valid_h2h)
 
-                if h2h_win_rate >= 0.70:
-                    s3 = 20
-                elif h2h_win_rate >= 0.55:
-                    s3 = 15
-                elif h2h_win_rate >= 0.40:
+                if h2h_draw_rate <= 0.15:
+                    s2 = 20
+                elif h2h_draw_rate <= 0.25:
+                    s2 = 15
+                elif h2h_draw_rate <= 0.35:
+                    s2 = 10
+                elif h2h_draw_rate <= 0.50:
+                    s2 = 5
+                else:
+                    s2 = 1
+            else:
+                s2 = 8  # neutral — no H2H data
+
+            # Hard guard: H2H is draw-heavy — this fixture tends not to produce a winner
+            if valid_h2h and h2h_draw_rate > 0.50:
+                logger.debug(
+                    "score_win: fixture %s rejected — H2H draw rate %.0f%% > 50%%",
+                    fid, h2h_draw_rate * 100,
+                )
+                return None
+
+            # ── Signal 3: Recent form decisiveness — both teams (25 pts max)
+            # Count W/L results (decisive) across both teams' last 5 overall.
+            home_form = [
+                m for m in adv.get("home_last_5_form", [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            ]
+            away_form = [
+                m for m in adv.get("away_last_5_form", [])
+                if isinstance(m, dict) and m.get("opponent") != "No data"
+            ]
+            total_form_matches = len(home_form) + len(away_form)
+
+            if total_form_matches >= 8:
+                decisive = sum(
+                    1 for m in home_form + away_form
+                    if m.get("result") in ("W", "L")
+                )
+                decisive_rate = decisive / total_form_matches
+                if decisive_rate >= 0.80:
+                    s3 = 25
+                elif decisive_rate >= 0.65:
+                    s3 = 18
+                elif decisive_rate >= 0.50:
                     s3 = 10
-                elif h2h_win_rate >= 0.25:
-                    s3 = 5
                 else:
-                    s3 = 2
+                    s3 = 4
             else:
-                s3 = 8  # neutral — no H2H data
+                s3 = 10  # neutral — insufficient form data
 
-            # ── Signal 4: Season Venue Win Rate from Standings (15 pts max)
-            side_st = standing.get("home", {}) if side == "home" else standing.get("away", {})
-            stat_key = "home_stat" if side == "home" else "away_stat"
-            venue_stat = side_st.get(stat_key, {})
-            venue_played = (
-                venue_stat.get("played", 0)
-                or venue_stat.get("matches_played", 0)
-                or 0
-            )
-            venue_wins = venue_stat.get("win", 0) or venue_stat.get("wins", 0) or 0
-            venue_win_rate: float | None = (
-                venue_wins / venue_played if venue_played >= 3 else None
-            )
-
-            if venue_win_rate is not None:
-                if venue_win_rate >= 0.70:
-                    s4 = 15
-                elif venue_win_rate >= 0.55:
-                    s4 = 11
-                elif venue_win_rate >= 0.40:
-                    s4 = 7
-                else:
-                    s4 = 3
+            # ── Signal 4: Market draw price (15 pts max) ──────────────────
+            # High draw odds = bookmaker thinks draw is unlikely.
+            if draw_odds >= 4.50:
+                s4 = 15
+            elif draw_odds >= 3.50:
+                s4 = 11
+            elif draw_odds >= 3.00:
+                s4 = 8
+            elif draw_odds >= 2.50:
+                s4 = 5
+            elif draw_odds >= 2.00:
+                s4 = 2
             else:
-                s4 = 6  # neutral
+                s4 = 6  # no draw odds data — neutral
 
-            # ── Signal 5: Opponent Weakness in Their Travelling Context (10 pts max)
-            opp_side = "away" if side == "home" else "home"
-            if opp_side == "away":
-                opp_ctx_form = [
-                    m for m in adv.get("away_last_5_away_form", [])
-                    if isinstance(m, dict) and m.get("opponent") != "No data"
-                ]
-            else:
-                opp_ctx_form = [
-                    m for m in adv.get("home_last_5_home_form", [])
-                    if isinstance(m, dict) and m.get("opponent") != "No data"
-                ]
+            # ── Signal 5: Combined season win rate from standings (10 pts max)
+            home_stat = standing.get("home", {}).get("home_stat", {})
+            away_stat = standing.get("away", {}).get("away_stat", {})
+            home_played = home_stat.get("played", 0) or 0
+            home_wins = home_stat.get("win", 0) or home_stat.get("wins", 0) or 0
+            away_played = away_stat.get("played", 0) or 0
+            away_wins = away_stat.get("win", 0) or away_stat.get("wins", 0) or 0
 
-            n_opp = len(opp_ctx_form)
-            opp_losses = sum(1 for m in opp_ctx_form if m.get("result") == "L")
-
-            if n_opp >= 4:
-                opp_loss_rate = opp_losses / n_opp
-                if opp_loss_rate >= 0.60:
+            if home_played >= 3 and away_played >= 3:
+                avg_win_rate = (home_wins / home_played + away_wins / away_played) / 2
+                if avg_win_rate >= 0.55:
                     s5 = 10
-                elif opp_loss_rate >= 0.40:
+                elif avg_win_rate >= 0.40:
                     s5 = 7
-                elif opp_loss_rate >= 0.20:
+                elif avg_win_rate >= 0.25:
                     s5 = 4
                 else:
                     s5 = 1
             else:
-                s5 = 4  # neutral
+                s5 = 5  # neutral
 
             win_score = s1 + s2 + s3 + s4 + s5
 
@@ -241,72 +202,21 @@ class WinEngine:
                 )
                 return None
 
-            # ── Hard guards ───────────────────────────────────────────────
-
-            # Guard 0: venue form floor — when we have enough context data,
-            # the team must win at least 40% of games in this venue.
-            # Prevents high-API-probability teams with genuinely poor venue
-            # records slipping through purely on their s1 score.
-            if n_ctx >= 4 and (ctx_wins / n_ctx) < 0.40:
-                logger.debug(
-                    "score_win: fixture %s — %s venue win rate %.0f%% < 40%%, rejecting",
-                    fid, team_name, (ctx_wins / n_ctx) * 100,
-                )
-                return None
-
-            # Guard 1: lost last 3 consecutive H2H → no confidence backing a win
-            if len(valid_h2h) >= 3:
-                lost_last_3 = all(
-                    (
-                        m.get("home_name") == team_name
-                        and (m.get("home_goals") or 0) < (m.get("away_goals") or 0)
-                    ) or (
-                        m.get("away_name") == team_name
-                        and (m.get("away_goals") or 0) < (m.get("home_goals") or 0)
-                    )
-                    for m in valid_h2h[:3]
-                )
-                if lost_last_3:
-                    logger.debug(
-                        "score_win: fixture %s — %s lost last 3 H2H, rejecting",
-                        fid, team_name,
-                    )
-                    return None
-
-            # Guard 2: draw-heavy H2H → this fixture tends not to produce a winner
-            if len(valid_h2h) >= 4 and h2h_draw_rate > 0.50:
-                logger.debug(
-                    "score_win: fixture %s — H2H draw rate %.0f%% > 50%%, rejecting",
-                    fid, h2h_draw_rate * 100,
-                )
-                return None
-
-            # Guard 3: two consecutive venue-context losses → form collapse
-            if n_ctx >= 2:
-                last_2 = [m.get("result") for m in ctx_form[:2]]
-                if last_2 == ["L", "L"]:
-                    logger.debug(
-                        "score_win: fixture %s — %s lost last 2 venue matches, rejecting",
-                        fid, team_name,
-                    )
-                    return None
-
             return {
                 **fixture,
                 "win_score": win_score,
-                "win_odds": pick_odds,
-                "win_pct": win_pct,
-                "win_side": side,
-                "win_team": team_name,
-                "h2h_win_rate": round(h2h_win_rate, 2) if valid_h2h else None,
+                "win_odds": dc_12,
+                "win_pct": combined_win_pct,
+                "draw_pct": draw_pct,
+                "win_side": "12",
+                "win_team": "Either Team Wins",
                 "h2h_draw_rate": round(h2h_draw_rate, 2) if valid_h2h else None,
-                "venue_win_rate": round(venue_win_rate, 2) if venue_win_rate is not None else None,
                 "signal_breakdown": {
-                    "s1_api_win_pct": s1,
-                    "s2_venue_form": s2,
-                    "s3_h2h": s3,
-                    "s4_season_venue": s4,
-                    "s5_opp_weakness": s5,
+                    "s1_api_draw_pct": s1,
+                    "s2_h2h_draw_rate": s2,
+                    "s3_form_decisive": s3,
+                    "s4_market_draw_price": s4,
+                    "s5_season_win_rate": s5,
                     "total": win_score,
                 },
             }
@@ -328,7 +238,7 @@ class WinEngine:
         odds: dict,
     ) -> list[dict]:
         """
-        Score every fixture for heavy-favourite win probability.
+        Score every fixture for "either team wins" (no draw) probability.
 
         Returns fixtures sorted by win_score descending, capped at MAX_PICKS.
         """
@@ -356,7 +266,7 @@ class WinEngine:
         """
         Build 100x, 1K, and 100K–200K win accumulators from scored picks.
 
-        All legs must have odds ≤ MAX_ODDS (1.30).
+        All legs use Double Chance "12" odds (MIN_DC_ODDS–MAX_DC_ODDS).
 
         100x   : ~18 legs, target    80x–200x
         1K     : ~28 legs, target   800x–2000x
@@ -423,15 +333,15 @@ class WinEngine:
         """
         Build one win accumulator to the given target-odds range.
 
-        Selection order: score DESC, then odds DESC so higher-value legs
-        compound the product faster.  Max 3 legs from the same league.
-        Allows a 10 % overshoot buffer on target_max.
+        Selection order: score DESC, then odds DESC.
+        Max 3 legs from the same league.
+        Allows a 10% overshoot buffer on target_max.
         """
         tag = f"_build_win_acca({label})"
         try:
             eligible = [
                 f for f in scored_wins
-                if self.MIN_ODDS <= f.get("win_odds", 0) <= self.MAX_ODDS
+                if self.MIN_DC_ODDS <= f.get("win_odds", 0) <= self.MAX_DC_ODDS
             ]
             eligible.sort(key=lambda f: (-f["win_score"], -f["win_odds"]))
 

@@ -228,47 +228,42 @@ class Formatter:
         return "\n".join(lines)
 
     def format_win_picks(self, picks: list[dict]) -> str:
-        """Format up to 50 heavy-favourite win picks as a Telegram message."""
+        """Format up to 50 "either team wins" (1 or 2) picks as a Telegram message."""
         if not picks:
             return (
                 "🏆 Win Picks\n"
                 "━━━━━━━━━━━━━━━━━━\n"
-                "No heavy-favourite win picks found.\n"
+                "No qualifying win picks found.\n"
                 "Try again tomorrow."
             )
 
         lines = [
-            "🏆 WIN PICKS  (odds ≤ 1.30)",
+            "🏆 WIN PICKS  (1 or 2 — Either Team Wins)",
             "━━━━━━━━━━━━━━━━━━",
             f"Total: {len(picks)} picks",
             "",
         ]
         for i, pick in enumerate(picks, 1):
-            side = pick.get("win_side", "")
             home = pick.get("home_team_name", "")
             away = pick.get("away_team_name", "")
-            team = pick.get("win_team", "")
-            label = "HOME WIN" if side == "home" else "AWAY WIN"
             date = pick.get("kickoff_date_short", pick.get("kickoff_str", "")[:11])
+            draw_pct = pick.get("draw_pct", 0)
+            win_pct = pick.get("win_pct", 0)
+            lines.append(f"{i}. [{date}]  {home} vs {away}")
             lines.append(
-                f"{i}. [{date}]  {home} vs {away}"
-            )
-            lines.append(
-                f"   {label}: {team}  @{pick.get('win_odds', 0):.2f} "
+                f"   1 OR 2  @{pick.get('win_odds', 0):.2f} "
                 f"| Score: {pick.get('win_score', 0)}"
-                + (f" | API%: {pick.get('win_pct', 0):.0f}%" if pick.get("win_pct") else "")
+                + (f" | Draw%: {draw_pct:.0f}%" if draw_pct else "")
+                + (f" | Win%: {win_pct:.0f}%" if win_pct else "")
             )
-            h2h_r = pick.get("h2h_win_rate")
-            venue_r = pick.get("venue_win_rate")
-            detail = f"   H2H W%: {h2h_r:.0%}" if h2h_r is not None else "   H2H: n/a"
-            if venue_r is not None:
-                detail += f" | Venue W%: {venue_r:.0%}"
+            h2h_dr = pick.get("h2h_draw_rate")
+            detail = f"   H2H Draw%: {h2h_dr:.0%}" if h2h_dr is not None else "   H2H: n/a"
             lines.append(detail)
             lines.append(f"   {pick.get('league_name', '')}")
 
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━")
-        lines.append("⚠️ Heavy favourites — use as accumulator legs only.")
+        lines.append("⚠️ Bet: match ends with a winner (no draw). Double Chance 1&2.")
         return "\n".join(lines)
 
     def format_win_accas(self, result: dict) -> str:
@@ -308,9 +303,6 @@ class Formatter:
                 key=lambda l: l.get("date", ""),
             )
             for i, leg in enumerate(sorted_legs, 1):
-                side = leg.get("win_side", "")
-                team = leg.get("win_team", "")
-                label = "H" if side == "home" else "A"
                 date = leg.get("kickoff_date_short", "")
                 lines.append(
                     f"{i}. [{date}]  "
@@ -318,7 +310,7 @@ class Formatter:
                     f"{leg.get('away_team_name', '')}"
                 )
                 lines.append(
-                    f"   [{label}] {team} Win  "
+                    f"   1 OR 2  "
                     f"@{leg.get('win_odds', 0):.2f} | "
                     f"Score: {leg.get('win_score', 0)}"
                 )
@@ -337,5 +329,5 @@ class Formatter:
 
         lines.append("")
         lines.append("━━━━━━━━━━━━━━━━━━")
-        lines.append("⚠️ All legs ≤ 1.30 — high confidence, compound carefully.")
+        lines.append("⚠️ All legs: 1 or 2 (no draw). Double Chance — compound carefully.")
         return "\n".join(lines)

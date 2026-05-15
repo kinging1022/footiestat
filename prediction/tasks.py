@@ -283,8 +283,9 @@ def check_and_update_results() -> None:
 @shared_task(bind=True, max_retries=2)
 def run_win_pipeline(self) -> None:
     """
-    Heavy-favourite win pipeline.
+    "Either Team Wins" (1 or 2) pipeline.
 
+    Finds matches where a draw is unlikely — bet on any decisive result.
     Sends 3 messages to Telegram:
       1. Header + up to 50 individual win picks
       2. 100x and 1K accumulators

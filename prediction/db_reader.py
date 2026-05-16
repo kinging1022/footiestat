@@ -61,7 +61,7 @@ class DBReader:
         mode='monster': fixtures within PREDICTION_MONSTER_DAYS_AHEAD days,
                         limited to priority leagues.
         mode='win': fixtures within PREDICTION_MONSTER_DAYS_AHEAD days,
-                    priority leagues only.
+                    all leagues (no priority filter) — guards handled by WinEngine.
         """
         try:
             now = timezone.now()
@@ -98,11 +98,12 @@ class DBReader:
                     league__priority__lte=settings.PREDICTION_PRIORITY_THRESHOLD,
                 )
             elif mode == "win":
+                # All leagues — WinEngine's strict odds gate and
+                # statistical guards replace the priority filter.
                 qs = qs.filter(
                     date__lte=now + timedelta(
                         days=settings.PREDICTION_MONSTER_DAYS_AHEAD
                     ),
-                    league__priority__lte=settings.PREDICTION_PRIORITY_THRESHOLD,
                 )
 
             results: list[dict] = []

@@ -21,7 +21,7 @@ class WinEngine:
     MAX_PICKS = 50
     MAX_DC_ODDS = 1.80    # Double Chance "12" upper bound
     MIN_DC_ODDS = 1.20    # Double Chance "12" lower bound
-    SCORE_THRESHOLD = 50  # minimum win_score to qualify
+    SCORE_THRESHOLD = 55  # minimum win_score to qualify
 
     # ------------------------------------------------------------------
     # Single-fixture scoring
@@ -58,8 +58,8 @@ class WinEngine:
             if not dc_12 or not (self.MIN_DC_ODDS <= dc_12 <= self.MAX_DC_ODDS):
                 return None
 
-            # Draw priced below 2.00 means the market thinks draw is likely — skip
-            if draw_odds and draw_odds < 2.00:
+            # Draw priced below 2.20 means the market thinks draw is likely — skip
+            if draw_odds and draw_odds < 2.20:
                 return None
 
             draw_pct = float(pred.get("draw_pct", 0) or 0)
@@ -121,9 +121,9 @@ class WinEngine:
                 s2 = 8  # neutral — no H2H data
 
             # Hard guard: H2H is draw-heavy — this fixture tends not to produce a winner
-            if valid_h2h and h2h_draw_rate > 0.50:
+            if valid_h2h and h2h_draw_rate > 0.40:
                 logger.debug(
-                    "score_win: fixture %s rejected — H2H draw rate %.0f%% > 50%%",
+                    "score_win: fixture %s rejected — H2H draw rate %.0f%% > 40%%",
                     fid, h2h_draw_rate * 100,
                 )
                 return None
@@ -146,14 +146,19 @@ class WinEngine:
                     if m.get("result") in ("W", "L")
                 )
                 decisive_rate = decisive / total_form_matches
+                # Hard guard: both teams drawing too often in recent games
+                if decisive_rate < 0.50:
+                    logger.debug(
+                        "score_win: fixture %s rejected — form decisive rate %.0f%% < 50%%",
+                        fid, decisive_rate * 100,
+                    )
+                    return None
                 if decisive_rate >= 0.80:
                     s3 = 25
                 elif decisive_rate >= 0.65:
                     s3 = 18
-                elif decisive_rate >= 0.50:
-                    s3 = 10
                 else:
-                    s3 = 4
+                    s3 = 10
             else:
                 s3 = 10  # neutral — insufficient form data
 
